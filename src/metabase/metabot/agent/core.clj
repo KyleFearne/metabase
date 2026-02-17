@@ -16,6 +16,7 @@
    [metabase.metabot.scope :as scope]
    [metabase.metabot.self :as self]
    [metabase.metabot.tools :as tools]
+   [metabase.metabot.tools.shared :as shared]
    [metabase.util :as u]
    [metabase.util.json :as json]
    [metabase.util.log :as log]
@@ -270,10 +271,12 @@
          (map #(get-structured-output (:result %)))
          (filter #(and (:chart-id %) (:query-id %))))
    (completing
-    (fn [mem {:keys [chart-id chart-type query]}]
+    (fn [mem {:keys [chart-id chart-type query chart-description chart-name]}]
       (memory/store-chart mem
                           chart-id
                           {:chart_id chart-id
+                           :chart_name chart-name
+                           :chart_description chart-description
                            :queries [query]
                            :visualization_settings {:chart_type chart-type}})))
    memory
@@ -487,7 +490,8 @@
           ;; function (e.g. aisdk-line-xf wrapping streaming-writer-rf) whose completion
           ;; arity emits a finish message — that must only fire once, at the end of the
           ;; entire agent loop, not after every iteration.
-          result'            (reduce (xf rf) result llm-call)
+          result'            (binding [shared/*memory-atom* memory-atom]
+                               (reduce (xf rf) result llm-call))
           parts              @parts-atom]
       ;; Sync link registry back to memory after streaming completes
       (swap! memory-atom assoc-in [:state :link-registry] @link-registry-atom)

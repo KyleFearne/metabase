@@ -64,7 +64,6 @@
   (let [scopes (scope/user-metabot-perms->scopes {:permission/metabot-other-tools :yes})]
     (is (contains? scopes "agent:viz:*"))
     (is (contains? scopes "agent:dashboard:*"))
-    (is (contains? scopes "agent:document:*"))
     (is (contains? scopes "agent:alert:*"))))
 
 (deftest ^:parallel perms->scopes-no-does-not-grant-test

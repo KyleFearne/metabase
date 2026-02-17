@@ -54,12 +54,6 @@
 (api-scope/defscope agent-dashboard-subscribe "agent:dashboard:subscribe"
   (deferred-tru "Subscribe to dashboard alerts"))
 
-;; Document
-(api-scope/defscope agent-document-read "agent:document:read"
-  (deferred-tru "View documents"))
-(api-scope/defscope agent-document-create "agent:document:create"
-  (deferred-tru "Create documents"))
-
 ;; Visualization
 (api-scope/defscope agent-viz-read "agent:viz:read"
   (deferred-tru "Analyze charts and visualizations"))
@@ -148,7 +142,7 @@
   that permission is `:yes`."
   {:permission/metabot-sql-generation #{"agent:sql:*" "agent:transforms:*" "agent:snippets:*"}
    :permission/metabot-nlq            #{"agent:notebook:*" "agent:query:*" "agent:table:*" "agent:metric:*" "agent:question:*"}
-   :permission/metabot-other-tools    #{"agent:viz:*" "agent:dashboard:*" "agent:document:*" "agent:alert:*"}})
+   :permission/metabot-other-tools    #{"agent:viz:*" "agent:dashboard:*" "agent:alert:*"}})
 
 (def always-granted-scopes
   "Scopes granted to every user regardless of permissions."

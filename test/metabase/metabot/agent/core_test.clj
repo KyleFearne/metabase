@@ -170,6 +170,23 @@
                             (map? (:data %)))
                       result))))))))
 
+(deftest run-agent-loop-respects-disabled-data-parts-during-post-processing-test
+  (mt/as-admin
+    (mt/with-temporary-setting-values [llm-metabot-provider test-provider]
+      (with-redefs [self/call-llm (fn [& _]
+                                    [{:type     :tool-output
+                                      :id       "t1"
+                                      :function "navigate_user"
+                                      :result   {:reactions [{:type :metabot.reaction/redirect
+                                                              :url  "/question#abc"}]}}])]
+        (let [result (into [] (agent/run-agent-loop
+                               {:messages   [{:role :user :content "Open that question"}]
+                                :state      {}
+                                :profile-id :document-generate-content
+                                :context    {:disabled_data_parts ["navigate_to"]}}))]
+          (is (some #(= :tool-output (:type %)) result))
+          (is (not-any? #(= "navigate_to" (:data-type %)) result)))))))
+
 ;;; Query and Chart extraction tests
 
 (deftest extract-queries-test
@@ -214,9 +231,13 @@
                   :result {:structured-output chart-data}}]
           memory {:state {:queries {} :charts {}}}
           updated (#'agent/extract-charts memory parts)]
-      (is (= {:chart_id "c-456"
-              :queries [query]
-              :visualization_settings {:chart_type :bar}} (get-in (memory/get-state updated) [:charts "c-456"])))))
+      (is (=? {:chart_id "c-456"
+               :chart_name nil
+               :chart_description nil
+               :queries [query]
+               :visualization_settings {:chart_type :bar}}
+              (get-in (memory/get-state updated) [:charts "c-456"])))))
+
   (testing "ignores parts without chart-id"
     (let [parts [{:type :tool-output
                   :id "t1"

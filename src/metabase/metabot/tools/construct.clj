@@ -47,7 +47,9 @@
    [:source_entity source-entity-schema]
    [:referenced_entities {:optional true} [:maybe [:sequential source-entity-schema]]]
    [:program construct-program-schema]
-   [:visualization {:optional true} construct-visualization-schema]])
+   [:visualization {:optional true} construct-visualization-schema]
+   [:name {:optional true} :string]
+   [:description {:optional true} :string]])
 
 ;;; ---------------------------------------- Source resolution ----------------------------------------
 
@@ -198,11 +200,12 @@
            :scope     scope/agent-notebook-create}
   construct-notebook-query-tool
   "Construct and visualize a notebook query from a metric, model, or table."
-  [{:keys [_reasoning source_entity referenced_entities program visualization]} :- construct-notebook-query-args-schema]
+  [{:keys [_reasoning source_entity referenced_entities program visualization name description]} :- construct-notebook-query-args-schema]
   (try
     (let [;; LLM sometimes nests visualization inside program — pull it out
           effective-viz            (or visualization (:visualization program))
-          normalized-visualization (some-> effective-viz (update-keys (comp keyword u/->kebab-case-en name)))
+          normalized-visualization (some-> effective-viz
+                                           (update-keys (comp keyword u/->kebab-case-en clojure.core/name)))
           chart-type              (or (chart-type->keyword (:chart-type normalized-visualization))
                                       :table)
           query-result            (execute-program source_entity referenced_entities (dissoc program :visualization))
@@ -211,11 +214,15 @@
         (let [chart-result (create-chart-tools/create-chart
                             {:query-id      (:query-id structured)
                              :chart-type    chart-type
-                             :queries-state {(:query-id structured) (:query structured)}})
+                             :queries-state {(:query-id structured) (:query structured)}
+                             :chart-name name
+                             :chart-description description})
               navigate-url (get-in chart-result [:reactions 0 :url])
               full-structured (assoc structured
                                      :result-type   :query
                                      :chart-id      (:chart-id chart-result)
+                                     :chart-name    (:chart-name chart-result)
+                                     :chart-description (:chart-description chart-result)
                                      :chart-type    (:chart-type chart-result)
                                      :chart-link    (:chart-link chart-result)
                                      :chart-content (:chart-content chart-result))
