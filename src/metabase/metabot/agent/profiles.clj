@@ -53,6 +53,7 @@
   - :max-iterations - Maximum agent loop iterations
   - :temperature - LLM temperature setting
   - :tools - Vector of tool vars (e.g. #'tools/search-tool)
+  - :disabled-data-parts - Optional vector of data part types suppressed for this profile
 
   Tool vars are validated at registration time to ensure they have required metadata."
   [profile :- [:map
@@ -60,7 +61,8 @@
                [:prompt-template :string]
                [:max-iterations :int]
                [:temperature :float]
-               [:tools [:vector :any]]]]
+               [:tools [:vector :any]]
+               [:disabled-data-parts {:optional true} [:vector :string]]]]
   (let [tool-vars (:tools profile)]
     (doseq [tool-var tool-vars]
       (validate-tool-var! tool-var))
@@ -149,6 +151,7 @@
   :prompt-template "document-generate-content.selmer"
   :max-iterations  10
   :temperature     0.3
+  :disabled-data-parts ["navigate_to"]
   :tools           [#'tools/search-tool
                     #'tools/read-resource-tool
                     #'tools/create-sql-query-tool
