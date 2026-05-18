@@ -73,7 +73,7 @@
          (seq data))
     (str "```json\n" (json/encode data {:pretty true}) "\n```")))
 
-(defn- escape-xml
+(defn escape-xml
   "Escape XML special characters in a string.
    Only needed for content that bypasses Selmer's auto-escaping (marked with |safe)."
   [s]
@@ -555,6 +555,9 @@
       (clojure.core/name result-type)
       "item")))
 
+(defn- container-type? [type]
+  (#{"dashboard" :dashboard "collection" :collection} type))
+
 (defn search-result->xml
   "Format a single search result as XML element.
    Includes database_id, database_engine, and fully_qualified_name for table/model results
@@ -568,8 +571,14 @@
    `schema.table` of the table the metric aggregates). Combined with `database_name` this
    gives the LLM the full portable FK `[database_name, schema, table]` it must put in
    `source-table:` when using `[metric, {}, <portable_entity_id>]` as an aggregation —
-   without a separate `entity_details` round-trip."
-  [{:keys [id type name description verified collection
+   without a separate `entity_details` round-trip.
+
+   Each result also gets a `uri` (`metabase://...`) and curator flags
+   (`is_verified`, `is_official`, `is_library_member`) plus an `is_container` marker
+   for collections/dashboards — the LLM picks URIs and feeds them to `read_resource`
+   for details. `collection_path` is the slash-joined ancestor chain."
+  [{:keys [id type name description verified collection collection_path
+           official_collection library_member
            database_id database_name database_engine database_schema portable_entity_id
            base_table_portable_fk]}]
   (let [fqn (cond
@@ -584,15 +593,23 @@
                  (database-engine-or-unknown
                   (if (keyword? database_engine)
                     (clojure.core/name database_engine)
-                    database_engine)))]
+                    database_engine)))
+        type-kw (cond (keyword? type) type
+                      (string? type)  (keyword type)
+                      :else           type)]
     (render-llm-template
      :search_result
      {:search_tag_name (search-result-tag-name type)
       :search_id (str id)
       :search_name name
+      :search_uri (metabase-uri type-kw id)
+      :search_is_container (container-type? type)
       :search_has_verified (some? verified)
       :search_verified verified
+      :search_is_official (boolean official_collection)
+      :search_is_library_member (boolean library_member)
       :search_description description
+      :search_collection_path collection_path
       :search_collection_name (:name collection)
       :search_database_id (when database_id (str database_id))
       :search_database_name database_name
