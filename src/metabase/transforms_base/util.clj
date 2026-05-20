@@ -30,7 +30,6 @@
    [metabase.util.log :as log]
    [metabase.util.malli :as mu]
    [metabase.util.malli.registry :as mr]
-   [metabase.warehouse-schema.models.table :as table]
    [toucan2.core :as t2])
   (:import
    (java.time Instant LocalDate LocalDateTime LocalTime OffsetDateTime OffsetTime ZonedDateTime)
@@ -163,17 +162,41 @@
   (or (isa? base-type :type/Temporal)
       (isa? base-type :type/Number)))
 
+(defn full-incremental-run?
+  "True when an incremental transform should drop-and-recreate the target rather than append.
+  Fires whenever `last_checkpoint_value` is nil — covers the literal first run, and any run after the
+  `:model/Transform` before-update hook clears the watermark on a `checkpoint-filter-field-id`
+  change. Stays true across failed attempts since the predicate only inspects
+  `:last_checkpoint_value`."
+  [{:keys [target last_checkpoint_value]}]
+  (and (= :table-incremental (keyword (:type target)))
+       (nil? last_checkpoint_value)))
+
 (defn- encode-checkpoint-value [v]
   (if (number? v)
     (str v)
     (u.date/format v)))
 
+(defn checkpoint-span-attrs
+  "Build a map of OTel span attributes from `source-range-params`. Returns an empty
+  map when params are nil. Values are encoded as strings (the same encoding used
+  for persistence) so spans render consistently regardless of base type."
+  [source-range-params]
+  (let [{:keys [checkpoint-filter-field-id]
+         {lo-value :value} :lo
+         {hi-value :value} :hi} source-range-params]
+    (cond-> {}
+      checkpoint-filter-field-id (assoc :transform/checkpoint-field-id checkpoint-filter-field-id)
+      (some? lo-value)           (assoc :transform/checkpoint-lo (encode-checkpoint-value lo-value))
+      (some? hi-value)           (assoc :transform/checkpoint-hi (encode-checkpoint-value hi-value)))))
+
 (defn save-watermark!
   "Commits the incremental transforms :hi watermark value to the appdb."
   [transform-id source-range-params]
-  (t2/update! :model/Transform
-              transform-id
-              {:last_checkpoint_value (some-> source-range-params :hi :value encode-checkpoint-value)}))
+  (let [hi-value (:value (:hi source-range-params))]
+    (t2/update! :model/Transform
+                transform-id
+                {:last_checkpoint_value (some-> hi-value encode-checkpoint-value)})))
 
 (defn save-run-checkpoint-range!
   "Persist the checkpoint range (lo/hi) on a transform run record.
@@ -588,12 +611,10 @@
               (and (:table_id entry) (not (:table entry)))
               (merge (int-id->metadata (:table_id entry)) entry)
 
-              ;; Has table metadata but no table_id — look it up, upsert transform target if not found
+              ;; Has table metadata but no table_id — look it up. Leaves :table_id nil if the
+              ;; referenced table doesn't exist yet; resolved later at execute time.
               (missing-table-id? entry)
-              (assoc entry :table_id (or (ref-lookup (source-table-ref->key entry))
-                                         (when (and (:database_id entry) (:table entry))
-                                           (table/upsert-transform-target-table!
-                                            (:database_id entry) (:schema entry) (:table entry)))))
+              (assoc entry :table_id (ref-lookup (source-table-ref->key entry)))
 
               ;; Already fully populated
               :else entry))
@@ -664,7 +685,7 @@
                       {:temporal t})))))
 
 (defn utc-timestamp-string
-  "Convert the timestamp t to a string encoding the it in the system timezone."
+  "Convert the timestamp `t` to a UTC ISO-8601 string."
   [t]
   (-> t ->instant str))
 
@@ -707,16 +728,6 @@
     identity))
 
 ;;; ------------------------------------------------- Misc -------------------------------------------------
-
-(defn upsert-target-table!
-  "Upsert a provisional table entry for a transform's target, creating it if it doesn't exist.
-  Returns the table ID.
-
-  Thin wrapper around [[metabase.warehouse-schema.models.table/upsert-transform-target-table!]] —
-  exists because the `models` module cannot depend on `warehouse-schema` directly, but can
-  depend on `transforms-base` (which is allowed to use `warehouse-schema`)."
-  [db-id schema table-name]
-  (table/upsert-transform-target-table! db-id schema table-name))
 
 (defn is-temp-transform-table?
   "Return true when `table` matches the transform temporary table naming pattern."

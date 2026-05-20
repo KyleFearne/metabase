@@ -12,6 +12,7 @@ import {
   PLUGIN_FEATURE_LEVEL_PERMISSIONS,
   PLUGIN_REMOTE_SYNC,
 } from "metabase/plugins";
+import { useSelector } from "metabase/redux";
 import { getLocation } from "metabase/selectors/routing";
 import {
   canAccessTransforms as canAccessTransformsSelector,
@@ -24,15 +25,14 @@ import {
   FixedSizeIcon,
   Flex,
   Group,
-  type IconName,
   Loader,
   Stack,
   Text,
   Tooltip,
 } from "metabase/ui";
+import * as Urls from "metabase/urls";
 import { isMac } from "metabase/utils/browser";
-import { useSelector } from "metabase/utils/redux";
-import * as Urls from "metabase/utils/urls";
+import type { IconName } from "metabase-types/api";
 
 import S from "./DataStudioLayout.module.css";
 import { getCurrentTab } from "./utils";

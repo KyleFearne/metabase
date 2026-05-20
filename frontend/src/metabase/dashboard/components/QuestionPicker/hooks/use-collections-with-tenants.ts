@@ -2,12 +2,12 @@ import { useMemo } from "react";
 import { t } from "ttag";
 
 import { skipToken, useListCollectionsTreeQuery } from "metabase/api";
+import { ROOT_COLLECTION } from "metabase/collections/constants";
+import getExpandedCollectionsById from "metabase/collections/getExpandedCollectionsById";
 import { useSetting } from "metabase/common/hooks/use-setting";
-import { ROOT_COLLECTION } from "metabase/entities/collections";
-import getExpandedCollectionsById from "metabase/entities/collections/getExpandedCollectionsById";
 import { PLUGIN_TENANTS } from "metabase/plugins";
+import { useSelector } from "metabase/redux";
 import { getUserPersonalCollectionId } from "metabase/selectors/user";
-import { useSelector } from "metabase/utils/redux";
 import type { Collection, CollectionId } from "metabase-types/api";
 
 // getExpandedCollectionsById produces path as CollectionId[] at runtime,

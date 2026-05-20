@@ -1,5 +1,6 @@
 (ns ^:mb/driver-tests metabase.transforms.util-test
   "Tests for transform utility functions."
+  {:clj-kondo/config '{:linters {:deprecated-var {:exclude {metabase.test.data/mbql-query {:namespaces [metabase.transforms.util-test]}}}}}}
   (:require
    [clojure.core.async :as a]
    [clojure.test :refer :all]
@@ -210,10 +211,10 @@
               result (transforms-base.u/normalize-source-tables source-tables)]
           (is (= 999 (:table_id (first result))))))
 
-      (testing "creates transform target table for non-existent table ref"
+      (testing "leaves :table_id nil for non-existent table ref"
         (let [source-tables [{:alias "t" :database_id (:id db) :schema nil :table "nonexistent"}]
               result (transforms-base.u/normalize-source-tables source-tables)]
-          (is (int? (:table_id (first result))))))
+          (is (nil? (:table_id (first result))))))
 
       (testing "handles entries needing different kinds of enrichment"
         (let [source-tables [{:alias "t1" :table_id (:id t1)}
@@ -368,20 +369,22 @@
     (mt/test-drivers (mt/normal-drivers-with-feature :transforms/table)
       (mt/with-premium-features #{:transforms-basic}
         (let [target {:type "table" :schema nil :name "test_output_table"}]
-          ;; The Transform after-insert hook creates a provisional table for the target,
-          ;; so we don't need to create one explicitly.
-          (mt/with-temp [:model/Transform {transform-id :id :as transform}
+          (mt/with-temp [:model/Table {table-id :id} {:db_id  (mt/id)
+                                                      :schema nil
+                                                      :name   "test_output_table"}
+                         :model/Transform {transform-id :id :as transform}
                          {:target target
                           :source {:type  "query"
                                    :query (lib/query (mt/metadata-provider) (mt/mbql-query venues))}}]
-            (let [table-id (t2/select-one-fn :id :model/Table :db_id (mt/id) :name "test_output_table" :schema nil)]
-              ;; Mock execute-base! to return success without actually running a query,
-              ;; run-cancelable-transform! to bypass schema creation / cancellation infra,
-              ;; and sync-target! to skip driver calls but still return the provisional table
-              ;; so complete-execution! can set transform_id on it.
+            ;; Mock execute-base! to return success without actually running a query,
+            ;; run-cancelable-transform! to bypass schema creation / cancellation infra,
+            ;; and sync-target! to skip driver calls but still return the target table
+            ;; so complete-execution! can set transform_id on it. execute-base! is a multimethod,
+            ;; so it needs with-redefs (with-dynamic-fn-redefs refuses to proxy multimethods);
+            ;; the plain fns go through with-dynamic-fn-redefs to keep them thread-local.
+            (with-redefs [transforms-base.i/execute-base! (constantly {:status :succeeded})]
               (mt/with-dynamic-fn-redefs
-                [transforms-base.i/execute-base!        (constantly {:status :succeeded})
-                 transforms-base.u/sync-target!         (fn [_target _database]
+                [transforms-base.u/sync-target!         (fn [_target _database]
                                                           (t2/select-one :model/Table table-id))
                  transforms.u/run-cancelable-transform! (fn [_run-id _transform _driver _details run-fn & _opts]
                                                           (run-fn (a/promise-chan) nil))]

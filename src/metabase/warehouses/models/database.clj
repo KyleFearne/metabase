@@ -1,9 +1,8 @@
 (ns metabase.warehouses.models.database
   (:require
-   [clojure.core.match :refer [match]]
    [clojure.data :as data]
    [medley.core :as m]
-   [metabase.analytics.core :as analytics]
+   [metabase.analytics-interface.core :as analytics]
    [metabase.api.common :as api]
    [metabase.app-db.core :as mdb]
    [metabase.audit-app.core :as audit]
@@ -29,6 +28,7 @@
    [metabase.util.malli :as mu]
    [metabase.util.quick-task :as quick-task]
    [metabase.warehouses.provider-detection :as provider-detection]
+   [metabase.warehouses.settings :as warehouses.settings]
    [methodical.core :as methodical]
    [toucan2.core :as t2]
    [toucan2.pipeline :as t2.pipeline]
@@ -177,26 +177,27 @@
 (defn- infer-db-schedules
   "Infer database schedule settings based on its options."
   [{:keys [details is_full_sync is_on_demand cache_field_values_schedule metadata_sync_schedule] :as database}]
-  (match [(boolean (:let-user-control-scheduling details)) is_full_sync is_on_demand]
-    [false _ _]
-    (merge
-     database
-     (sync.schedules/schedule-map->cron-strings
-      (sync.schedules/default-randomized-schedule)))
+  (let [user-control-scheduling (boolean (:let-user-control-scheduling details))]
+    (cond (not user-control-scheduling)
+          (merge
+           database
+           (sync.schedules/schedule-map->cron-strings
+            (sync.schedules/default-randomized-schedule)))
 
-    ;; "Regularly on a schedule"
-    ;; -> sync both steps, schedule should be provided
-    [true true false]
-    (do
-      (assert (every? some? [cache_field_values_schedule metadata_sync_schedule]))
-      database)
+          (and user-control-scheduling is_full_sync (not is_on_demand))
+          ;; "Regularly on a schedule"
+          ;; -> sync both steps, schedule should be provided
+          (do
+            (assert (every? some? [cache_field_values_schedule metadata_sync_schedule]))
+            database)
 
-    ;; "Only when adding a new filter" or "Never, I'll do it myself"
-    ;; -> Sync metadata only
-    [true false _]
-    ;; schedules should only contains metadata_sync, but FE might sending both
-    ;; so we just manually nullify it here
-    (assoc database :cache_field_values_schedule nil)))
+          (and user-control-scheduling (not is_full_sync))
+          ;; schedules should only contains metadata_sync, but FE might sending both
+          ;; so we just manually nullify it here
+          (assoc database :cache_field_values_schedule nil)
+
+          :else (throw (ex-info "Illegal options combination."
+                                (select-keys database [:let-user-control-scheduling :is_full_sync :is_on_demand]))))))
 
 (defn is-destination?
   "Is this database a destination database for some router database?"
@@ -204,16 +205,27 @@
   (boolean (:router_database_id db)))
 
 (defn should-sync?
-  "Should this database be synced?"
+  "Should this database be synced at all? Destination (router-child) databases are never synced.
+  This is the gate for *explicit*, user-requested syncs (e.g. the Sync-now button), which run
+  regardless of the `disable-auto-sync` setting. For automatically-triggered syncs use
+  [[should-auto-sync?]]."
   [db]
   (not (is-destination? db)))
+
+(defn should-auto-sync?
+  "Should this database be synced *automatically* — scheduled sync/analyze, the post-add initial
+  sync, and Quartz trigger registration? False when the database isn't syncable at all, or when
+  auto-sync is globally suppressed via the `disable-auto-sync` setting."
+  [db]
+  (and (should-sync? db)
+       (not (warehouses.settings/disable-auto-sync))))
 
 (defn- check-and-schedule-tasks-for-db!
   "(Re)schedule sync operation tasks for `database`. (Existing scheduled tasks will be deleted first.)"
   [database]
   (try
     ;; this is done this way to avoid circular dependencies
-    (when (should-sync? database)
+    (when (should-auto-sync? database)
       ((requiring-resolve 'metabase.sync.task.sync-databases/check-and-schedule-tasks-for-db!) database))
     (catch Throwable e
       (log/error e "Error scheduling tasks for DB"))))
@@ -630,12 +642,20 @@
               :is_sample        false
               :uploads_enabled  false}})
 
+(def ^:dynamic *include-h2-in-extract?*
+  "When false (the default), [[serdes/extract-query]] skips H2 databases because they are rejected at import time
+  by [[assert-not-h2!]]. Round-trip tests that exercise H2 throughout — and rebind `assert-not-h2!` accordingly —
+  may rebind this to `true` to keep the H2 databases in the extract."
+  false)
+
 (defmethod serdes/extract-query "Database"
   [model-name {:keys [where]}]
   (t2/reducible-select (keyword "model" model-name)
-                       {:where [:and
-                                (or where true)
-                                [:= :router_database_id nil]]}))
+                       {:where (cond-> [:and
+                                        (or where true)
+                                        [:= :router_database_id nil]]
+                                 (not *include-h2-in-extract?*)
+                                 (conj [:not= :engine "h2"]))}))
 
 (defmethod serdes/entity-id "Database"
   [_ {:keys [name]}]
@@ -667,6 +687,25 @@
                               (:details ingested)            (update :details driver/sanitize-db-details)
                               (:write_data_details ingested) (update :write_data_details driver/sanitize-db-details))
                             maybe-local))
+
+(def ^:private metadata-export-perms
+  {:perms/view-data      :unrestricted
+   :perms/create-queries :query-builder})
+
+(defmethod serdes/metadata-query :model/Database
+  [model opts]
+  (t2/reducible-query {:select [:id :name :engine]
+                       :from   [[(t2/table-name model) :db]]
+                       :where  (serdes/metadata-query-filter model :db opts)}))
+
+(defmethod serdes/metadata-query-filter :model/Database
+  [_model alias {:keys [user-info database-ids]}]
+  (cond-> [:and
+           [:= (u/qualified-key alias :is_audit) false]
+           [:= (u/qualified-key alias :router_database_id) nil]
+           [:in (u/qualified-key alias :id)
+            (perms/visible-database-filter-select user-info metadata-export-perms)]]
+    (seq database-ids) (conj [:in (u/qualified-key alias :id) database-ids])))
 
 (def ^{:arglists '([table-id])} table-id->database-id
   "Retrieve the `Database` ID for the given table-id."

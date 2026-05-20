@@ -1,20 +1,20 @@
 import { bindActionCreators } from "@reduxjs/toolkit";
+import { skipToken } from "@reduxjs/toolkit/query/react";
 import type { ComponentType, ReactNode } from "react";
 import { useEffect, useMemo } from "react";
 import { match } from "ts-pattern";
 
-import { skipToken } from "metabase/api";
 import {
   LoadingAndErrorWrapper as DefaultLoadingAndErrorWrapper,
   type LoadingAndErrorWrapperProps,
 } from "metabase/common/components/LoadingAndErrorWrapper";
+import { useDispatch, useSelector } from "metabase/redux";
 import {
   setRequestError,
   setRequestLoaded,
   setRequestLoading,
 } from "metabase/redux/requests";
 import type { Dispatch } from "metabase/redux/store";
-import { useDispatch, useSelector } from "metabase/utils/redux";
 
 import type {
   EntityDefinition,
