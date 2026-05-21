@@ -9,8 +9,10 @@
   - Template caching for performance"
   (:require
    [clojure.java.io :as io]
+   [clojure.string :as str]
    [metabase.metabot.scope :as scope]
    [metabase.metabot.settings :as metabot.settings]
+   [metabase.search.engine :as search.engine]
    [metabase.util.log :as log]
    [selmer.parser :as selmer]))
 
@@ -174,24 +176,32 @@
 (defn extract-tool-instructions
   "Extract system instructions from tool definitions by loading prompt files.
 
-  For each tool, loads a markdown prompt file from `resources/metabot/prompts/tools/`.
+  For each tool, loads a prompt file from `resources/metabot/prompts/tools/`.
   The filename is determined by:
   1. `:prompt` key in the tool definition map (if present), or
   2. `\"<tool-name>.md\"` as default.
 
+  Files ending in `.selmer` are rendered with Selmer using `tool-context`, so they
+  can branch on runtime features (e.g. `{% if has_semantic_search %}...`). Other
+  files are returned verbatim — existing markdown prompts with literal `{{...}}`
+  template placeholders for the LLM stay safe from accidental rendering.
+
   Only tools with a corresponding prompt resource file are included.
 
   Returns vector of maps: [{:tool_name \"search\" :instructions \"...\"}]"
-  [tools]
-  (vec
-   (for [[tool-name tool-def] tools
-         :let [fname  (or (:prompt tool-def)
-                          (str tool-name ".md"))
-               prompt (some-> (io/resource (str "metabot/prompts/tools/" fname))
-                              slurp)]
-         :when prompt]
-     {:tool_name tool-name
-      :instructions prompt})))
+  ([tools] (extract-tool-instructions tools {}))
+  ([tools tool-context]
+   (vec
+    (for [[tool-name tool-def] tools
+          :let [fname    (or (:prompt tool-def)
+                             (str tool-name ".md"))
+                template (some-> (io/resource (str "metabot/prompts/tools/" fname))
+                                 slurp)]
+          :when template]
+      {:tool_name    tool-name
+       :instructions (if (str/ends-with? fname ".selmer")
+                       (render-tool-prompt template tool-context)
+                       template)}))))
 
 ;;; High-Level API
 
@@ -212,7 +222,13 @@
                                      (get context :sql-dialect))
             dialect-instructions (when sql-dialect
                                    (get-cached-dialect-instructions sql-dialect))
-            tool-instructions    (extract-tool-instructions tools)
+            ;; Runtime gate for engine-aware tool prompts. `supported-engine?` accounts
+            ;; for the premium feature flag, the user setting, and the configured URL —
+            ;; matching exactly what the search call path will actually use.
+            has-semantic-search? (boolean (search.engine/supported-engine? :search.engine/semantic))
+            tool-instructions    (extract-tool-instructions
+                                  tools
+                                  {:has_semantic_search has-semantic-search?})
             current-user-info    (or (get context :current_user_info)
                                      (get context :current-user-info))
             current-time         (or (get context :current_time)

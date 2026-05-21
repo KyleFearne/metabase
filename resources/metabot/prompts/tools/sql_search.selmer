@@ -1,6 +1,6 @@
-Hybrid keyword + semantic search for SQL-queryable data sources (tables and models)
-within a single database. Returns one XML element per hit, each carrying a `uri` attribute
-you feed back into `read_resource` to inspect schema before writing SQL.
+{% if has_semantic_search %}Hybrid keyword + semantic search{% else %}Keyword (full-text) search{% endif %} for SQL-queryable data sources (tables and
+models) within a single database. Returns one XML element per hit, each carrying a `uri`
+attribute you feed back into `read_resource` to inspect schema before writing SQL.
 
 ## When to use
 
@@ -15,8 +15,11 @@ name fragment.
 - ✓ `"orders"`, `"customer accounts"`, `"product inventory"`, `"GitHub pull requests"`
 - ✗ `""` (empty), `"all tables"`, `"everything"`
 
-The backend runs your query through both keyword (full-text) and semantic (vector)
-matching in parallel and fuses the two — you don't need to send paraphrases.
+{% if has_semantic_search %}The backend fuses keyword (full-text) and semantic (vector) matching via reciprocal
+rank fusion — a single natural phrasing handles most cases, since meaning-level matches
+catch terminology variations automatically.{% else %}The backend uses keyword (full-text) matching only — literal word overlap with the
+table/model name and description is what scores. Lean toward the actual likely table
+names rather than a paraphrase of what the user said.{% endif %}
 
 **Iteration is cheap.** If your first query misses, run it again with a different angle.
 A short follow-up beats one broad bundled query.

@@ -1,7 +1,9 @@
-Hybrid keyword + semantic search for data sources you can query through natural language
-(tables, models, metrics, saved questions, collections). Returns one XML element per hit,
-each carrying a `uri` attribute and curation flags you feed back into `read_resource`
-for details.
+{% if has_semantic_search %}Hybrid keyword + semantic search{% else %}Keyword (full-text) search{% endif %} for data sources you can query through natural
+language (tables, models, metrics, measures, segments, saved questions, collections).
+Returns one XML element per hit, each carrying a `uri` attribute and curation flags you
+feed back into `read_resource` for details. Measure and segment results also carry
+`base_table_fully_qualified_name` so you can use them in a query without a follow-up
+lookup.
 
 ## When to use
 
@@ -20,16 +22,31 @@ question fragment.
 - ✓ `"monthly active users"`, `"customer churn"`, `"revenue by region"`, `"top products"`
 - ✗ `""` (empty), `"all metrics"`, `"everything"`
 
-The backend runs your query through both keyword (full-text) and semantic (vector)
-matching in parallel and fuses the two — you don't need to send paraphrases.
+{% if has_semantic_search %}The backend fuses keyword (full-text) and semantic (vector) matching via reciprocal
+rank fusion — a single natural phrasing handles most cases, since meaning-level matches
+catch terminology variations automatically.{% else %}The backend uses keyword (full-text) matching only — literal token overlap against each
+item's name and description is what scores. There is no meaning-aware component. Rules
+of thumb:
+
+- **Every word ANDs.** Adding a qualifier narrows the result set, never broadens it.
+  `bounce rate` is better than `hard bounce rate campaign`.
+- **`or` between alternates** to bridge synonyms or abbreviations: `LTV or "lifetime
+  value"`, `MRR or "monthly recurring revenue"`, `shipments or fulfillment`,
+  `applicants or candidates or applications`. Quote multi-word alternates.
+- **English plurals are auto-stemmed** (`applications` matches `application`).
+- **Lean toward likely names**, not LLM paraphrases — the user's word may differ from
+  the indexed entity's name.
+
+On a zero-hit response the tool transparently retries once with the tokens OR-joined,
+but you'll get cleaner results by phrasing the OR-form yourself.{% endif %}
 
 **Iteration is cheap.** If your first query misses, run it again with a different angle.
 A short follow-up beats one broad bundled query.
 
 ## Filtering & scoping
 
-`entity_types` — restrict to `table`, `model`, `metric`, `question`, or `collection`.
-Leave empty to search broadly.
+`entity_types` — restrict to `table`, `model`, `metric`, `measure`, `segment`,
+`question`, or `collection`. Leave empty to search broadly.
 
 `database_id` — restrict to one database when the user mentions one or you want to
 narrow.
@@ -54,6 +71,12 @@ Collection: Examples
 Collection: Examples
 </metabase-model>
 <collection id="5" name="Engagement Reports" uri="metabase://collection/5" is_container="true"/>
+<measure id="3" name="Average Customer Lifetime Value" uri="metabase://measure/3" database_id="1" base_table_fully_qualified_name="shopify_enriched.int_shopify_customer_dim">
+Average shopify customer lifetime value
+</measure>
+<segment id="1" name="New Customers" uri="metabase://segment/1" database_id="1" base_table_fully_qualified_name="public.orders">
+Customers who placed their first order in the current month
+</segment>
 ...
 </results>
 ```

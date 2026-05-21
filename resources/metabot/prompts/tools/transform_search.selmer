@@ -1,6 +1,6 @@
-Hybrid keyword + semantic search for transforms (and the tables and models they read
-from / write to). Returns one XML element per hit, each carrying a `uri` attribute you
-feed back into `read_resource` for details, lineage, and source code.
+{% if has_semantic_search %}Hybrid keyword + semantic search{% else %}Keyword (full-text) search{% endif %} for transforms (and the tables and models they
+read from / write to). Returns one XML element per hit, each carrying a `uri` attribute
+you feed back into `read_resource` for details, lineage, and source code.
 
 ## When to use
 
@@ -16,8 +16,12 @@ transform-name fragment.
 - ✓ `"customer aggregation"`, `"daily orders rollup"`, `"revenue by region"`
 - ✗ `""` (empty), `"all transforms"`, `"everything"`
 
-The backend runs your query through both keyword (full-text) and semantic (vector)
-matching in parallel and fuses the two — you don't need to send paraphrases.
+{% if has_semantic_search %}The backend fuses keyword (full-text) and semantic (vector) matching via reciprocal
+rank fusion — a single natural phrasing handles most cases, since meaning-level matches
+catch terminology variations automatically.{% else %}The backend uses keyword (full-text) matching only — literal word overlap with the
+transform's name, description, and (when `search_native_query` is true) source code is
+what scores. Lean toward the words likely to appear in the actual transform name or
+source.{% endif %}
 
 **Iteration is cheap.** If your first query misses, run it again with a different angle.
 A short follow-up beats one broad bundled query.

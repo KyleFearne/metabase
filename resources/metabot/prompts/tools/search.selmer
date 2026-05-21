@@ -1,6 +1,7 @@
-Hybrid keyword + semantic search across the Metabase instance. Returns one XML element per
-hit, each carrying a `uri` attribute and curation flags. Search is **discovery**, not
-summarization — pair it with `read_resource` to drill into specific URIs for details.
+{% if has_semantic_search %}Hybrid keyword + semantic search across the Metabase instance.{% else %}Keyword (full-text) search across the Metabase instance.{% endif %}
+Returns one XML element per hit, each carrying a `uri` attribute and curation flags.
+Search is **discovery**, not summarization — pair it with `read_resource` to drill into
+specific URIs for details.
 
 ## When to use
 
@@ -19,21 +20,45 @@ question fragment.
   `"orders by region"`
 - ✗ `""` (empty), `"all dashboards"`, `"everything about customers"`
 
-The backend runs your query through both keyword (full-text) and semantic (vector)
-matching in parallel, then fuses the two — you don't need to send paraphrases.
+{% if has_semantic_search %}The backend fuses keyword (full-text) and semantic (vector) matching via reciprocal
+rank fusion at the SQL level. A single natural phrasing handles most cases — meaning-level
+matches catch terminology variations automatically, so you don't need to send paraphrases.{% else %}The backend uses keyword (full-text) matching only — literal token overlap against each
+item's name and description is what scores. There is **no** semantic / meaning-aware
+component. A few rules of thumb for working with it:
+
+- **Every word ANDs.** `customer churn rate` only returns items whose name/description
+  contain *all three* tokens. Adding a qualifier *narrows*, never broadens. If you have
+  a hypothesis like *"the user is asking about open rate"*, search `open rate`, not
+  `open rate email messages`.
+- **Lean toward likely entity names**, not LLM-style paraphrases. The user's word
+  ("shipments") may not match the actual entity name ("fulfillment").
+- **Use `or` between alternates** when you're unsure which word is in the index:
+  `shipments or fulfillment`, `applicants or candidates or applications`,
+  `LTV or "lifetime value"` (quote multi-word alternates so they stay together).
+- **Expand abbreviations explicitly**: `LTV or "lifetime value"`, `MRR or "monthly
+  recurring revenue"`, `CAC or "customer acquisition cost"`, `AOV or "order value"`.
+- **English plurals are auto-stemmed** (`applications` matches `application`); no
+  need to try both forms.
+- **Negate with `-`**: `bounce -hard` excludes items mentioning "hard".
+
+If a search returns 0 hits the tool will transparently retry once with the tokens
+OR-joined as a safety net, but you'll get better-ranked results by phrasing the OR-form
+yourself (with the actual synonyms / abbreviations you think might be in the index).{% endif %}
 
 **Iteration is cheap.** If your first query misses, run it again from a different angle:
 - "customer churn" missed → try "retention rate" or "lost customers"
 - Too many hits → narrow with `entity_types`, `database_id`, or `collection_id`
 - Top hit isn't right → scan further down or refine the query
 
-A short follow-up search beats one broad bundled query. Don't pre-hedge with multiple
-phrasings in a single call — that's the backend's job.
+A short follow-up search beats one broad bundled query. Send one query per call.
 
 ## Filtering & scoping
 
 `entity_types` — restrict to specific kinds. Allowed: `table`, `model`, `metric`,
-`dashboard`, `question`, `collection`. Leave empty to search across all of them.
+`measure`, `segment`, `dashboard`, `question`, `collection`. Leave empty to search
+across all of them. Measures and segments are bound to a specific table; their results
+carry `base_table_fully_qualified_name` so you can use them in a query without an extra
+lookup.
 
 `database_id` — restrict to one database. Use when the user mentioned a database, or
 after a broad search returned items spanning many databases and you want to narrow.
@@ -63,6 +88,12 @@ Collection: Marketing/Q4
 <question id="3" name="Customer satisfaction per category" uri="metabase://question/3" is_official="true" database_id="1">
 Collection: Examples
 </question>
+<measure id="3" name="Average Customer Lifetime Value" uri="metabase://measure/3" database_id="1" base_table_fully_qualified_name="shopify_enriched.int_shopify_customer_dim">
+Average shopify customer lifetime value
+</measure>
+<segment id="1" name="New Customers" uri="metabase://segment/1" database_id="1" base_table_fully_qualified_name="public.orders">
+Customers who placed their first order in the current month
+</segment>
 ...
 </results>
 ```

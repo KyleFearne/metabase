@@ -218,13 +218,13 @@
       (with-redefs [perms/impersonated-user? (fn [] false)
                     perms/sandboxed-user? (fn [] false)
                     api/*current-user-id* 1]
-        (testing "nlq-search-tool with no entity_types searches table/model/metric/question/collection"
+        (testing "nlq-search-tool with no entity_types searches table/model/metric/measure/segment/question/collection"
           (let [captured (atom nil)]
             (mt/with-dynamic-fn-redefs [search-core/search (fn [context]
                                                              (reset! captured (:models context))
                                                              {:data []})]
               (search/nlq-search-tool {:query "x"}))
-            (is (= #{"table" "dataset" "metric" "card" "collection"} @captured))
+            (is (= #{"table" "dataset" "metric" "measure" "segment" "card" "collection"} @captured))
             (is (not (contains? @captured "dashboard")))
             (is (not (contains? @captured "transform")))
             (is (not (contains? @captured "database")))))
@@ -367,7 +367,7 @@
                                                                                 :type     :query
                                                                                 :query    {:source-table (mt/id :orders)}}}
                        :model/Dashboard {dash-id :id} {:name "PortableEID Sample Dashboard"}]
-          (let [results      (search/search {:term-queries ["PortableEID Sample"]})
+          (let [results      (search/search {:query "PortableEID Sample"})
                 by-id        (into {} (map (juxt (juxt :id :type) identity)) results)
                 question-res (get by-id [q-id "question"])
                 model-res    (get by-id [m-id "model"])
@@ -382,7 +382,7 @@
               (is (some? dash-res) "expected the dashboard to appear in search results")
               (is (not (contains? dash-res :portable_entity_id))))))))))
 
-(deftest enrich-with-metric-base-tables-test
+(deftest enrich-with-base-tables-test
   (testing (str "Metric search results carry `base_table_*` fields so the LLM can write\n"
                 "`source-table:` without a separate entity_details call. We look up\n"
                 "`report_card.table_id` → `metabase_table.{schema,name}` and assemble the\n"
@@ -400,7 +400,7 @@
                                                      :type     :query
                                                      :query    {:source-table (mt/id :orders)
                                                                 :aggregation  [[:count]]}}}]
-          (let [results   (search/search {:term-queries ["BaseTable Sample Metric"]})
+          (let [results   (search/search {:query "BaseTable Sample Metric"})
                 by-id     (into {} (map (juxt (juxt :id :type) identity)) results)
                 metric-res (get by-id [metric-id "metric"])
                 db-name   (t2/select-one-fn :name :model/Database :id (mt/id))

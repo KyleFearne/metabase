@@ -24,7 +24,8 @@
 (set! *warn-on-reflection* true)
 
 (def ^:private metabot-search-models
-  (sorted-set "card" "collection" "dashboard" "database" "dataset" "metric" "table" "transform"))
+  (sorted-set "card" "collection" "dashboard" "database" "dataset"
+              "measure" "metric" "segment" "table" "transform"))
 
 (def ^:private metabot-weight-overrides
   "Per-request weight overrides applied to every metabot search. Boosts curator signals
@@ -76,6 +77,19 @@
       "transform"
       (merge common-fields
              {:database_id (:database_id result)})
+
+      ;; Measures and segments are bound to a specific table; the LLM needs that table's
+      ;; identity to use them in queries. The search row already carries the joined
+      ;; table fields (see `:render-terms` on the measure/segment search spec); we just
+      ;; copy them through here. `:base_table_portable_fk` is then assembled in
+      ;; [[enrich-with-base-tables]] once `database_name` is known.
+      ("measure" "segment")
+      (merge common-fields
+             {:database_id       (:database_id result)
+              :base_table_id     (:table_id result)
+              :base_table_name   (:table_name result)
+              :base_table_schema (:table_schema result)
+              :base_table_display_name (:table_display_name result)})
 
       ;; Questions, metrics, and datasets
       (merge common-fields
@@ -164,61 +178,85 @@
                                  (m/assoc-some :database_name db-name))))))))
 
 (defn- enrich-with-portable-entity-ids
-  "Attach `:portable_entity_id` (the card's `entity_id` NanoID) to saved-question, model,
-  and metric search results so the LLM can use it verbatim as `source-card:` (for
-  questions/models) or inside a `[metric, {}, <entity_id>]` aggregation clause (for
-  metrics) without a follow-up `entity_details` / `read_resource` round-trip."
+  "Attach `:portable_entity_id` (the entity's `entity_id` NanoID) to saved-question, model,
+  metric, measure, and segment search results so the LLM can use it verbatim as
+  `source-card:` (for questions/models) or inside a `[metric|measure|segment, {}, <eid>]`
+  clause without a follow-up `entity_details` / `read_resource` round-trip.
+
+  Each entity type lives in its own table (`report_card` for cards/metrics,
+  `metabase_measure`, `metabase_segment`), so we issue one lookup per family but keep
+  them O(1) per search call regardless of how many of each appear in the result set."
   [results]
-  (let [carded-types #{"question" "model" "metric"}
-        card-ids (->> results
-                      (filter #(carded-types (:type %)))
-                      (keep :id)
-                      distinct)
-        id->eid  (when (seq card-ids)
-                   (t2/select-pk->fn :entity_id :model/Card :id [:in card-ids]))]
-    (cond->> results
-      (seq id->eid) (mapv (fn [r]
-                            (if-let [eid (and (carded-types (:type r))
-                                              (get id->eid (:id r)))]
-                              (assoc r :portable_entity_id eid)
-                              r))))))
+  (let [card-types  #{"question" "model" "metric"}
+        type->model {"measure" :model/Measure
+                     "segment" :model/Segment}
+        card-ids    (->> results (filter #(card-types (:type %))) (keep :id) distinct)
+        card-id->eid (when (seq card-ids)
+                       (t2/select-pk->fn :entity_id :model/Card :id [:in card-ids]))
+        other-eid-lookups (into {}
+                                (map (fn [[type model]]
+                                       (let [ids (->> results (filter #(= type (:type %))) (keep :id) distinct)]
+                                         (when (seq ids)
+                                           [type (t2/select-pk->fn :entity_id model :id [:in ids])]))))
+                                type->model)]
+    (mapv (fn [r]
+            (let [eid (cond
+                        (card-types (:type r)) (get card-id->eid (:id r))
+                        (contains? type->model (:type r))
+                        (get-in other-eid-lookups [(:type r) (:id r)]))]
+              (cond-> r
+                eid (assoc :portable_entity_id eid))))
+          results)))
 
-(defn- enrich-with-metric-base-tables
+(defn- enrich-with-base-tables
   "Attach base-table info (`:base_table_id`, `:base_table_name`, `:base_table_schema`,
-  `:base_table_portable_fk`) to metric search results.
+  `:base_table_portable_fk`) to metric / measure / segment search results.
 
-  A metric is a Card whose `:dataset_query` aggregates a specific table; the LLM needs that
-  table's portable FK as the `source-table:` when it wants to use the metric. Without this
-  enrichment the LLM sees the metric's `portable_entity_id` in search but has to either
-  hallucinate the base table (observed failure mode: `[<db>, public, customers]`) or do an
-  extra `entity_details` round-trip. We read the two columns directly from
-  `report_card.table_id` + `metabase_table.{schema,name}` to keep the lookup O(1) extra
-  query per search call, regardless of number of metrics in the result set.
+  For each, the LLM needs the binding table's portable FK as the `source-table:` when
+  building a query. Without this enrichment the LLM sees the entity's name but has to
+  hallucinate the base table (observed failure mode: `[<db>, public, customers]`) or do
+  an extra `entity_details` round-trip.
 
-  Requires `:database_name` to already be set on each metric result (done earlier by
-  [[enrich-with-database-engines]]) so we can assemble the full portable FK
-  `[database_name, schema, table]`."
+  - **Metrics** are Cards (saved questions of type `:metric`); the table id lives on
+    `report_card.table_id`, so we look that up here and join through `metabase_table`.
+  - **Measures** and **segments** already carry the join'd table fields on the search
+    row (see `:render-terms` + `:joins` in their search specs), so
+    [[postprocess-search-result]] has already copied `:base_table_*` through and this
+    step only needs to attach the portable FK.
+
+  Requires `:database_name` to already be set (done by [[enrich-with-database-engines]])
+  so we can assemble the full portable FK `[database_name, schema, table]`."
   [results]
   (let [metric-ids (->> results (filter #(= "metric" (:type %))) (keep :id) distinct)
         card-id->table-id (when (seq metric-ids)
                             (t2/select-pk->fn :table_id :model/Card :id [:in metric-ids]))
         table-ids (->> card-id->table-id vals (remove nil?) distinct)
         table-id->info (when (seq table-ids)
-                         (t2/select-pk->fn (juxt :schema :name) :model/Table :id [:in table-ids]))]
-    (cond->> results
-      (seq card-id->table-id)
-      (mapv (fn [r]
-              (if (= "metric" (:type r))
-                (if-let [table-id (get card-id->table-id (:id r))]
-                  (let [[schema table-name] (get table-id->info table-id)
-                        db-name (:database_name r)]
-                    (cond-> (assoc r :base_table_id table-id)
-                      table-name (assoc :base_table_name table-name
-                                        :base_table_schema schema)
-                      (and db-name table-name)
-                      (assoc :base_table_portable_fk [db-name schema table-name])))
-                  r)
-                r))))))
+                         (t2/select-pk->fn (juxt :schema :name) :model/Table :id [:in table-ids]))
+        attach-portable-fk (fn [r]
+                             (let [{:keys [database_name base_table_schema base_table_name]} r]
+                               (cond-> r
+                                 (and database_name base_table_name)
+                                 (assoc :base_table_portable_fk
+                                        [database_name base_table_schema base_table_name]))))]
+    (mapv (fn [r]
+            (cond
+              (= "metric" (:type r))
+              (let [table-id (get card-id->table-id (:id r))
+                    [schema table-name] (when table-id (get table-id->info table-id))]
+                (cond-> r
+                  table-id   (assoc :base_table_id table-id)
+                  table-name (assoc :base_table_name table-name
+                                    :base_table_schema schema)
+                  table-name attach-portable-fk))
+
+              (#{"measure" "segment"} (:type r))
+              ;; Table fields were already copied through by postprocess-search-result;
+              ;; just attach the portable FK now that database_name is known.
+              (attach-portable-fk r)
+
+              :else r))
+          results)))
 
 (defn- remove-unreadable-transforms
   "Remove transforms from search results that the user cannot read.
@@ -236,14 +274,47 @@
                                      (or (not= "transform" (:type result))
                                          (contains? readable-ids (:id result))))))))
 
+(def ^:private query-broadening-stopwords
+  "Tokens we don't include in an OR-broadened fallback query — they'd flood the result
+   set with noise without adding signal."
+  #{"the" "a" "an" "of" "for" "with" "on" "in" "to" "by" "at" "and" "or"})
+
+(defn- broaden-query
+  "When the original keyword query produces zero hits, the agent has typically over-
+   specified — every word is ANDed and one stray qualifier (e.g. \"hard bounce rate
+   campaign\") collapses the result set to empty. As a one-shot fallback we rejoin the
+   meaningful tokens with `or` so the engine compiles them with `|` semantics.
+
+   Returns nil (no fallback) when broadening doesn't apply:
+     - the query is empty or a single token
+     - the agent already used `or` (so OR-broadening would be redundant)
+     - the agent used a quoted phrase (treat as a deliberate exact-match intent)"
+  [q]
+  (when (and q
+             (not (str/includes? q "\""))
+             (not (re-find #"(?i)\bor\b" q)))
+    (let [tokens (->> (str/split q #"\s+")
+                      (map str/trim)
+                      (remove str/blank?)
+                      (remove #(query-broadening-stopwords (u/lower-case-en %))))]
+      (when (> (count tokens) 1)
+        (str/join " or " tokens)))))
+
 (defn search
-  "Search for data sources (tables, models, cards, dashboards, metrics, transforms) in Metabase.
+  "Search for data sources (tables, models, cards, dashboards, metrics, measures,
+   segments, transforms) in Metabase.
 
    Routes the query to the semantic engine when available — that engine already does
    hybrid keyword + semantic RRF fusion at the SQL level (see
    `metabase-enterprise.semantic-search.scoring/rrf-rank-exp`). When semantic isn't
    available, falls back to the default keyword engine. No metabot-level fusion is
-   needed in either case."
+   needed in either case.
+
+   The keyword (appdb) engine ANDs every token in the input — adding an extra qualifier
+   word can collapse the result set to zero. When the initial call returns no hits we
+   transparently retry once with the tokens OR-joined via [[broaden-query]] so the
+   agent gets *something* useful back. Skipped when the query is a single token, is
+   quoted, or already uses `or`."
   [{:keys [query database-id collection-id created-at last-edited-at
            entity-types limit metabot-id profile-id search-native-query weights]}]
   (log/infof "[METABOT-SEARCH] Starting search with params: %s"
@@ -275,33 +346,52 @@
         ;; the caller wins on a per-key basis so callers can still tune.
         weights         (merge metabot-weight-overrides weights)
         limit           (or limit 50)
-        ;; Pick the semantic engine when active; it handles the hybrid blend internally.
-        ;; Otherwise pass nil to use the default engine precedence (which lands on appdb).
-        search-engine   (u/seek #{:search.engine/semantic} (search.engine/active-engines))
-        search-context  (search/search-context
-                         (cond-> {:search-string                       query
-                                  :models                              search-models
-                                  :table-db-id                         database-id
-                                  :created-at                          created-at
-                                  :last-edited-at                      last-edited-at
-                                  :current-user-id                     api/*current-user-id*
-                                  :is-impersonated-user?               (perms/impersonated-user?)
-                                  :is-sandboxed-user?                  (perms/sandboxed-user?)
-                                  :is-superuser?                       api/*is-superuser?*
-                                  :current-user-perms                  @api/*current-user-permissions-set*
-                                  :filter-items-in-personal-collection "exclude-others"
-                                  :context                             :metabot
-                                  :archived                            false
-                                  :limit                               limit
-                                  :offset                              0}
-                           ;; Don't include search-native-query key if nil so that we don't
-                           ;; inadvertently filter out search models that don't support it
-                           search-native-query (assoc :search-native-query (boolean search-native-query))
-                           use-verified?       (assoc :verified true)
-                           weights             (assoc :weights weights)
-                           search-engine       (assoc :search-engine (name search-engine))
-                           collection-id       (assoc :collection collection-id)))
-        results         (:data (search/search search-context))]
+        ;; Pick the engine that will actually run the search. Semantic handles its own
+        ;; hybrid (keyword + vector) blend internally, so it gets first refusal when
+        ;; active. Otherwise fall through to whatever the instance's default precedence
+        ;; resolves to — typically appdb, but could be `in-place` on minimal installs.
+        ;; Locking the choice in here (rather than relying on `search-context` to
+        ;; default it later) lets downstream code branch on the actual engine.
+        picked-engine   (or (u/seek #{:search.engine/semantic} (search.engine/active-engines))
+                            (search.engine/default-engine))
+        run-engine      (fn [search-string]
+                          (let [search-context
+                                (search/search-context
+                                 (cond-> {:search-string                       search-string
+                                          :models                              search-models
+                                          :search-engine                       (name picked-engine)
+                                          :table-db-id                         database-id
+                                          :created-at                          created-at
+                                          :last-edited-at                      last-edited-at
+                                          :current-user-id                     api/*current-user-id*
+                                          :is-impersonated-user?               (perms/impersonated-user?)
+                                          :is-sandboxed-user?                  (perms/sandboxed-user?)
+                                          :is-superuser?                       api/*is-superuser?*
+                                          :current-user-perms                  @api/*current-user-permissions-set*
+                                          :filter-items-in-personal-collection "exclude-others"
+                                          :context                             :metabot
+                                          :archived                            false
+                                          :limit                               limit
+                                          :offset                              0}
+                                   ;; Don't include search-native-query key if nil so that we don't
+                                   ;; inadvertently filter out search models that don't support it
+                                   search-native-query (assoc :search-native-query (boolean search-native-query))
+                                   use-verified?       (assoc :verified true)
+                                   weights             (assoc :weights weights)
+                                   collection-id       (assoc :collection collection-id)))]
+                            (:data (search/search search-context))))
+        primary         (run-engine query)
+        ;; Zero-hit fallback is appdb-only. The semantic engine already fuses keyword and
+        ;; vector matching, so OR-broadening on top is redundant; the `in-place` engine
+        ;; uses different matching semantics (LIKE patterns) where this rewrite doesn't
+        ;; apply cleanly. So we gate explicitly on `:search.engine/appdb`.
+        results         (or (when (and (empty? primary)
+                                       (= picked-engine :search.engine/appdb))
+                              (when-let [broadened (broaden-query query)]
+                                (log/infof "[METABOT-SEARCH] Zero hits for '%s'; broadening to '%s'"
+                                           query broadened)
+                                (not-empty (run-engine broadened))))
+                            primary)]
     (log/infof "[METABOT-SEARCH] Query '%s' returned entity types: %s"
                query (frequencies (map :model results)))
     (->> results
@@ -311,7 +401,7 @@
          enrich-with-collection-paths
          enrich-with-database-engines
          enrich-with-portable-entity-ids
-         enrich-with-metric-base-tables
+         enrich-with-base-tables
          remove-unreadable-transforms)))
 
 (defn- format-search-output
@@ -368,18 +458,21 @@
   [:map {:closed true}
    [:query :string]
    [:entity_types {:optional true}
-    [:maybe [:sequential [:enum "table" "model" "metric" "dashboard" "question" "collection"]]]]
+    [:maybe [:sequential [:enum "table" "model" "metric" "measure" "segment"
+                          "dashboard" "question" "collection"]]]]
    [:database_id   {:optional true} [:maybe :int]]
    [:collection_id {:optional true} [:maybe :int]]
    [:limit {:optional true} [:maybe [:int {:min 1 :max max-search-limit}]]]])
 
 (mu/defn ^{:tool-name "search"
+           :prompt    "search.selmer"
            :scope     scope/agent-search}
   search-tool
-  "Search for tables, models, metrics, dashboards, saved questions, and collections."
+  "Search for tables, models, metrics, measures, segments, dashboards, saved questions, and collections."
   [args :- search-schema]
   (do-search "search"
-             (sorted-set "collection" "dashboard" "metric" "model" "question" "table")
+             (sorted-set "collection" "dashboard" "measure" "metric" "model"
+                         "question" "segment" "table")
              {} args))
 
 (def ^:private sql-search-schema
@@ -391,7 +484,7 @@
    [:limit {:optional true} [:maybe [:int {:min 1 :max max-search-limit}]]]])
 
 (mu/defn ^{:tool-name "search"
-           :prompt    "sql_search.md"
+           :prompt    "sql_search.selmer"
            :scope     scope/agent-search}
   sql-search-tool
   "Search for SQL-queryable data sources (tables and models) within a database."
@@ -402,19 +495,20 @@
   [:map {:closed true}
    [:query :string]
    [:entity_types {:optional true}
-    [:maybe [:sequential [:enum "table" "model" "metric" "question" "collection"]]]]
+    [:maybe [:sequential [:enum "table" "model" "metric" "measure" "segment"
+                          "question" "collection"]]]]
    [:database_id   {:optional true} [:maybe :int]]
    [:collection_id {:optional true} [:maybe :int]]
    [:limit {:optional true} [:maybe [:int {:min 1 :max max-search-limit}]]]])
 
 (mu/defn ^{:tool-name "search"
-           :prompt    "nlq_search.md"
+           :prompt    "nlq_search.selmer"
            :scope     scope/agent-search}
   nlq-search-tool
-  "Search for NLQ-queryable data sources (tables, models, metrics, questions, and collections)."
+  "Search for NLQ-queryable data sources (tables, models, metrics, measures, segments, questions, and collections)."
   [args :- nlq-search-schema]
   (do-search "NLQ search"
-             (sorted-set "collection" "metric" "model" "question" "table")
+             (sorted-set "collection" "measure" "metric" "model" "question" "segment" "table")
              {:profile-id "nlq"} args))
 
 (def ^:private transform-search-schema
@@ -426,7 +520,7 @@
    [:limit {:optional true} [:maybe [:int {:min 1 :max max-search-limit}]]]])
 
 (mu/defn ^{:tool-name "search"
-           :prompt    "transform_search"
+           :prompt    "transform_search.selmer"
            :scope     scope/agent-search}
   transform-search-tool
   "Search for transforms, tables, and models."
