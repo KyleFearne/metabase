@@ -36,14 +36,17 @@ const DEFAULT_RESPONSES: Record<MetabotProvider, MetabotSettingsResponse> = {
     models: [
       {
         id: "anthropic/claude-haiku-4-5",
+        value: "metabase/anthropic/claude-haiku-4-5",
         display_name: "Claude Haiku 4.5",
       },
       {
         id: "anthropic/claude-sonnet-4-6",
+        value: "metabase/anthropic/claude-sonnet-4-6",
         display_name: "Claude Sonnet 4.6",
       },
       {
         id: "anthropic/claude-opus-4-1",
+        value: "metabase/anthropic/claude-opus-4-1",
         display_name: "Claude Opus 4.1",
       },
     ],
@@ -53,11 +56,13 @@ const DEFAULT_RESPONSES: Record<MetabotProvider, MetabotSettingsResponse> = {
     models: [
       {
         id: "claude-haiku-4-5",
+        value: "anthropic/claude-haiku-4-5",
         display_name: "Claude Haiku 4.5",
         group: "Haiku",
       },
       {
         id: "claude-sonnet-4-5",
+        value: "anthropic/claude-sonnet-4-5",
         display_name: "Claude Sonnet 4.5",
         group: "Sonnet",
       },
@@ -66,8 +71,12 @@ const DEFAULT_RESPONSES: Record<MetabotProvider, MetabotSettingsResponse> = {
   openai: {
     value: "openai/gpt-4.1-mini",
     models: [
-      { id: "gpt-4.1-mini", display_name: "GPT-4.1 mini" },
-      { id: "gpt-4.1", display_name: "GPT-4.1" },
+      {
+        id: "gpt-4.1-mini",
+        value: "openai/gpt-4.1-mini",
+        display_name: "GPT-4.1 mini",
+      },
+      { id: "gpt-4.1", value: "openai/gpt-4.1", display_name: "GPT-4.1" },
     ],
   },
   openrouter: {
@@ -75,6 +84,7 @@ const DEFAULT_RESPONSES: Record<MetabotProvider, MetabotSettingsResponse> = {
     models: [
       {
         id: "openai/gpt-4.1-mini",
+        value: "openrouter/openai/gpt-4.1-mini",
         display_name: "OpenAI GPT-4.1 mini",
         group: "OpenAI",
       },
@@ -278,7 +288,7 @@ async function setup({
     const response = responseMap[provider];
 
     fetchMock.get({
-      url: "path:/api/metabot/settings",
+      url: "path:/api/metabot/list-models",
       query: { provider },
       response,
     });
@@ -610,7 +620,7 @@ describe("MetabotSetup", () => {
     expect(screen.queryByLabelText("Provider")).not.toBeInTheDocument();
 
     const settingsRequest = fetchMock.callHistory.calls(
-      "path:/api/metabot/settings",
+      "path:/api/metabot/list-models",
     )[0];
     expect(settingsRequest?.url).toContain("provider=anthropic");
     expect(settingsRequest?.url).not.toContain("api-key");
@@ -735,7 +745,7 @@ describe("MetabotSetup", () => {
   //   await waitFor(() => {
   //     expect(
   //       fetchMock.callHistory.called(
-  //         "path:/api/metabot/settings?provider=openai",
+  //         "path:/api/metabot/list-models?provider=openai",
   //       ),
   //     ).toBe(true);
   //   });
