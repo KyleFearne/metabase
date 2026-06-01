@@ -21,4 +21,18 @@
   org.bouncycastle/bcpkix-jdk18on   {:mvn/version "1.84"}
   org.bouncycastle/bcprov-jdk18on   {:mvn/version "1.84"}
   ;; pinned: snowflake-jdbc-thin 4.1.0 pulls jackson-core 2.18.4.1 which has resource exhaustion vulns
-  com.fasterxml.jackson.core/jackson-core {:mvn/version "2.21.2"}}}
+  com.fasterxml.jackson.core/jackson-core {:mvn/version "2.21.2"}
+
+  ;; pinned: snowflake-jdbc-thin -> software.amazon.awssdk/netty-nio-client pulls
+  ;; io.netty 4.1.126.Final transitively, which has vulnerabilities.
+  ;; Pin all netty artifacts that appear in the tree to a single patched version to keep them aligned.
+  ;; Bumping the driver alone does not help: even snowflake-jdbc-thin 4.2.0 resolves
+  ;; netty 4.1.126.Final transitively via netty-nio-client.
+  io.netty/netty-buffer                       {:mvn/version "4.1.134.Final"}
+  io.netty/netty-codec                        {:mvn/version "4.1.134.Final"}
+  io.netty/netty-common                       {:mvn/version "4.1.134.Final"}
+  io.netty/netty-handler                      {:mvn/version "4.1.134.Final"}
+  io.netty/netty-resolver                     {:mvn/version "4.1.134.Final"}
+  io.netty/netty-transport                    {:mvn/version "4.1.134.Final"}
+  io.netty/netty-transport-classes-epoll      {:mvn/version "4.1.134.Final"}
+  io.netty/netty-transport-native-unix-common {:mvn/version "4.1.134.Final"}}}
