@@ -48,7 +48,15 @@ type SearchContext =
   | "search-app"
   | "search-bar"
   | "command-palette"
-  | "entity-picker";
+  | "entity-picker"
+  | "data-picker"
+  | "type-filter"
+  | "browse"
+  | "embedding-setup"
+  | "document"
+  | "library"
+  | "dependencies"
+  | "model-migration";
 
 export type SearchQueryEvent = ValidateEvent<{
   event: "search_query";
