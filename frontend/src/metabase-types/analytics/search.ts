@@ -1,3 +1,5 @@
+import type { SearchContext } from "metabase-types/api";
+
 type SearchEventSchema = {
   event: string;
   runtime_milliseconds?: number | null;
@@ -43,20 +45,6 @@ type SearchContentType =
   | "indexed-entity"
   | "document"
   | "transform";
-
-type SearchContext =
-  | "search-app"
-  | "search-bar"
-  | "command-palette"
-  | "entity-picker"
-  | "data-picker"
-  | "type-filter"
-  | "browse"
-  | "embedding-setup"
-  | "document"
-  | "library"
-  | "dependencies"
-  | "model-migration";
 
 export type SearchQueryEvent = ValidateEvent<{
   event: "search_query";
