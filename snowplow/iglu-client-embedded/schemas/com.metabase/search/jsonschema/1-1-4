@@ -36,18 +36,18 @@
         "null"
       ],
       "enum": [
+        "browse",
+        "command-palette",
+        "data-picker",
+        "dependencies",
+        "document",
+        "embedding-setup",
+        "entity-picker",
+        "library",
+        "model-migration",
         "search-app",
         "search-bar",
-        "command-palette",
-        "entity-picker",
-        "data-picker",
-        "type-filter",
-        "browse",
-        "embedding-setup",
-        "document",
-        "library",
-        "dependencies",
-        "model-migration"
+        "type-filter"
       ],
       "maxLength": 1024
     },

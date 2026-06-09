@@ -1,5 +1,3 @@
-import type { SearchContext } from "metabase-types/api";
-
 type SearchEventSchema = {
   event: string;
   runtime_milliseconds?: number | null;
@@ -46,12 +44,29 @@ type SearchContentType =
   | "document"
   | "transform";
 
+// Intentionally redefined here (rather than importing `SearchContext` from metabase-types/api) so a
+// change to the set forces a corresponding change to the snowplow `search` schema's `context` enum:
+// snowplow/iglu-client-embedded/schemas/com.metabase/search/jsonschema/1-1-4
+type SnowplowSearchContext =
+  | "browse"
+  | "command-palette"
+  | "data-picker"
+  | "dependencies"
+  | "document"
+  | "embedding-setup"
+  | "entity-picker"
+  | "library"
+  | "model-migration"
+  | "search-app"
+  | "search-bar"
+  | "type-filter";
+
 export type SearchQueryEvent = ValidateEvent<{
   event: "search_query";
   search_term_hash: string | null;
   search_term: string | null;
   runtime_milliseconds: number;
-  context: SearchContext;
+  context: SnowplowSearchContext;
   total_results: number;
   page_results: number | null;
   content_type: SearchContentType[] | null;
@@ -71,7 +86,7 @@ export type SearchClickEvent = ValidateEvent<{
   event: "search_click";
   position: number;
   target_type: "item" | "view_more";
-  context: SearchContext;
+  context: SnowplowSearchContext;
   search_engine: string | null;
   request_id: string | null;
   entity_model: string | null;
