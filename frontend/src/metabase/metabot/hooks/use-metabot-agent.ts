@@ -83,7 +83,7 @@ export const useMetabotAgent = (agentId: MetabotAgentId = "omnibot") => {
           ...(typeof prompt === "string"
             ? { type: "text", message: prompt }
             : prompt),
-          context: await getChatContext(),
+          context: await getChatContext(agentId),
           agentId,
           metabot_id: metabotRequestId,
           profile: options?.profile,
@@ -113,7 +113,7 @@ export const useMetabotAgent = (agentId: MetabotAgentId = "omnibot") => {
 
   const retryMessage = useCallback(
     async (messageId: string) => {
-      const context = await getChatContext();
+      const context = await getChatContext(agentId);
       const action = await dispatch(
         retryPrompt({
           messageId,

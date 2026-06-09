@@ -125,21 +125,22 @@
                                      :instructions "Query created."})
                                   create-chart-tools/create-chart (fn [args]
                                                                     (reset! chart-called args)
-                                                                    {:chart-id "c-1"
-                                                                     :chart-type :table
-                                                                     :chart-link "metabase://chart/c-1"
-                                                                     :chart-content "<chart/>"
-                                                                     :query-id (:query-id args)
-                                                                     :reactions [{:type :metabot.reaction/redirect
-                                                                                  :url "/question#hash"}]})]
+                                                                     {:chart-id "c-1"
+                                                                      :chart-type :table
+                                                                      :chart-link "metabase://chart/c-1"
+                                                                      :chart-content "<chart/>"
+                                                                      :query-id (:query-id args)
+                                                                      :query {:database 1}
+                                                                      :results-url "/question#hash"})]
         (let [query-input {:lib/type "mbql/query"
                            :stages   [{:lib/type     "mbql.stage/mbql"
                                        :source-table ["Sample" "PUBLIC" "ORDERS"]
                                        :aggregation  [["count" {}]]}]}
               result (agent-tools/construct-notebook-query-tool
-                      {:reasoning     "check seats"
-                       :query         query-input
-                       :visualization {:chart_type "table"}})]
+                       {:reasoning     "check seats"
+                        :query         query-input
+                        :title         "Seat check"
+                        :visualization {:chart_type "table"}})]
           (is (= query-input @query-captured))
           (is (= "c-1" (get-in result [:structured-output :chart-id])))
           (is (= "q-1" (get-in result [:structured-output :query-id])))
@@ -153,6 +154,7 @@
     (is (contains? @#'agent-tools/state-dependent-tools "create_sql_query"))
     (is (contains? @#'agent-tools/state-dependent-tools "edit_sql_query"))
     (is (contains? @#'agent-tools/state-dependent-tools "replace_sql_query"))
+    (is (contains? @#'agent-tools/state-dependent-tools "construct_notebook_query"))
     (is (contains? @#'agent-tools/state-dependent-tools "todo_write"))
     (is (contains? @#'agent-tools/state-dependent-tools "todo_read"))
     (is (contains? @#'agent-tools/state-dependent-tools "navigate_user"))

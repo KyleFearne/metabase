@@ -26,6 +26,8 @@ import type {
   TaggedTransform,
 } from "metabase-types/api";
 
+import type { MetabotAgentId } from "./state";
+
 export type ChatContextProviderFn = (
   state: State,
 ) => Promise<Partial<MetabotChatContext> | void>;
@@ -61,7 +63,7 @@ export type MetabotCtx = {
   setPrompt: (prompt: string) => void;
   promptInputRef: RefObject<MetabotPromptInputRef> | undefined;
 
-  getChatContext: () => Promise<MetabotChatContext>;
+  getChatContext: (agentId?: MetabotAgentId) => Promise<MetabotChatContext>;
   registerChatContextProvider: (
     fn: ChatContextProviderFn,
   ) => DeregisterChatContextProviderFn;
@@ -157,38 +159,42 @@ export const MetabotProvider = ({
   const providerFnsRef = useRef<Set<ChatContextProviderFn>>(new Set());
   const store = useStore();
 
-  const getChatContext = useCallback(async () => {
-    const state = store.getState();
-    const providerFns = [...providerFnsRef.current];
+  const getChatContext = useCallback(
+    async (agentId?: MetabotAgentId) => {
+      const state = store.getState();
+      const providerFns = [...providerFnsRef.current];
 
-    const isAdmin = getUserIsAdmin(state);
-    const hasDataAccess = canUserCreateQueries(state);
-    const hasNativeWrite = canUserCreateNativeQueries(state);
+      const isAdmin = getUserIsAdmin(state);
+      const hasDataAccess = canUserCreateQueries(state);
+      const hasNativeWrite = canUserCreateNativeQueries(state);
 
-    let ctx: MetabotChatContext = {
-      user_is_viewing: [],
-      current_time_with_timezone: dayjs.tz(dayjs()).format(),
-      capabilities: _.compact([
-        "frontend:navigate_user_v1",
-        hasDataAccess && "permission:save_questions",
-        hasNativeWrite && "permission:write_sql_queries",
-        isAdmin && "permission:write_transforms",
-      ]) as string[],
-    };
+      let ctx: MetabotChatContext = {
+        user_is_viewing: [],
+        current_time_with_timezone: dayjs.tz(dayjs()).format(),
+        capabilities: _.compact([
+          "frontend:navigate_user_v1",
+          agentId === "ask" && "frontend:inline_viz_v1",
+          hasDataAccess && "permission:save_questions",
+          hasNativeWrite && "permission:write_sql_queries",
+          isAdmin && "permission:write_transforms",
+        ]) as string[],
+      };
 
-    for (const providerFn of providerFns) {
-      try {
-        const partialCtx = await providerFn(state);
-        if (partialCtx) {
-          ctx = mergeCtx(ctx, partialCtx);
+      for (const providerFn of providerFns) {
+        try {
+          const partialCtx = await providerFn(state);
+          if (partialCtx) {
+            ctx = mergeCtx(ctx, partialCtx);
+          }
+        } catch (err) {
+          console.error("A metabot chat context provider failed:", err);
         }
-      } catch (err) {
-        console.error("A metabot chat context provider failed:", err);
       }
-    }
 
-    return ctx;
-  }, [store]);
+      return ctx;
+    },
+    [store],
+  );
 
   const registerChatContextProvider = useCallback(
     (providerFn: ChatContextProviderFn) => {

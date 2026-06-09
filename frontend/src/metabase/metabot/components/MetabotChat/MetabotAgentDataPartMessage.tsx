@@ -10,6 +10,7 @@ import type { MetabotAgentDataPartMessage } from "metabase/metabot/state";
 import { ActionIcon, Badge, Box, Flex, Icon, Stack, Text } from "metabase/ui";
 import type { MetabotCodeEdit } from "metabase-types/api";
 
+import { InlineChart } from "./InlineChart";
 import {
   CodeEditTablePills,
   NavigateToTablePills,
@@ -67,6 +68,15 @@ export const AgentDataPartMessage = ({
         </Stack>
       );
     })
+    .with(
+      { part: { type: "generated_entity", value: { type: "card" } } },
+      ({ part }) => (
+        <Stack gap="md">
+          {debug && <DataPartJsonCard type={part.type} value={part.value} />}
+          <InlineChart value={part.value} />
+        </Stack>
+      ),
+    )
     .with({ part: { type: "adhoc_viz" } }, ({ part }) =>
       debug ? <DataPartJsonCard type={part.type} value={part.value} /> : null,
     )

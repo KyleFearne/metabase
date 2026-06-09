@@ -446,6 +446,9 @@ export const sendAgentRequest = createAsyncThunk<
                   metadata: { editorTransform, suggestionId },
                 });
               })
+              .with({ type: "generated_entity" }, (part) => {
+                pushDataPart({ type: "data_part", part });
+              })
               .with({ type: "adhoc_viz" }, (part) => {
                 pushDataPart({ type: "data_part", part });
               })
