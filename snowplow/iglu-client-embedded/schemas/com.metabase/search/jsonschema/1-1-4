@@ -97,7 +97,7 @@
         "null"
       ],
       "items": {
-        "description": "An entity type (card, question, dashboard, etc.)",
+        "description": "An entity type (card, question, dashboard, etc.). \"other\" buckets models that aren't tracked content types.",
         "type": "string",
         "enum": [
           "dashboard",
@@ -112,7 +112,9 @@
           "action",
           "indexed-entity",
           "document",
-          "transform"
+          "transform",
+          "schema",
+          "other"
         ],
         "maxLength": 1024
       }

@@ -1,4 +1,4 @@
-import type { SearchContext } from "metabase-types/api";
+import type { SearchContext, SearchModel } from "metabase-types/api";
 
 type SearchEventSchema = {
   event: string;
@@ -30,26 +30,53 @@ type ValidateEvent<
     Record<Exclude<keyof T, keyof SearchEventSchema>, never>,
 > = T;
 
-// keep in sync with the `search` snowplow schema
-type SearchContentType =
-  | "dashboard"
-  | "card"
-  | "dataset"
-  | "segment"
-  | "measure"
-  | "metric"
-  | "collection"
-  | "database"
-  | "table"
-  | "action"
-  | "indexed-entity"
-  | "document"
-  | "transform";
+// The snowplow `search` schema's `content_type` enum; keep in sync with:
+// snowplow/iglu-client-embedded/schemas/com.metabase/search/jsonschema/1-1-4
+// "other" (kept last) is the catch-all for models that aren't tracked content types — e.g. a picker that
+// casts a navigation pseudo-model like "schema" into `models`. `toSnowplowContentTypes` buckets anything
+// off-list there so a broadened tracking surface can't emit values that fail schema validation.
+const SNOWPLOW_CONTENT_TYPES = [
+  "dashboard",
+  "card",
+  "dataset",
+  "segment",
+  "measure",
+  "metric",
+  "collection",
+  "database",
+  "table",
+  "action",
+  "indexed-entity",
+  "document",
+  "transform",
+  "schema",
+  "other",
+] as const;
 
-// The snowplow `search` schema's `context` enum. Defined separately from the frontend `SearchContext`
-// (not imported) so adding a UI context forces a deliberate choice: extend this enum and the iglu
-// schema to track it, or list it in `PENDING_CONTEXTS` to bucket it as `"other"` until the schema
-// catches up. Keep in sync with:
+type SearchContentType = (typeof SNOWPLOW_CONTENT_TYPES)[number];
+
+const SNOWPLOW_CONTENT_TYPE_SET = new Set<string>(SNOWPLOW_CONTENT_TYPES);
+
+// Maps a search request's `models` to snowplow `content_type`, bucketing any value that isn't a tracked
+// content type into "other" and de-duplicating. The `SearchContentType[]` return type doubles as a
+// guard: a `SearchModel` missing from the enum above would fail to compile here.
+export const toSnowplowContentTypes = (
+  models: SearchModel[] | null | undefined,
+): SearchContentType[] | null =>
+  models == null
+    ? null
+    : Array.from(
+        new Set(
+          models.map((model) =>
+            SNOWPLOW_CONTENT_TYPE_SET.has(model) ? model : "other",
+          ),
+        ),
+      );
+
+// The snowplow `search` schema's `context` enum. Kept as its own list — not derived from the frontend
+// `SearchContext` (which is imported above only for the compile-time guard) — so adding a UI context
+// forces a deliberate choice: extend this enum and the iglu schema to track it, or list it in
+// `PENDING_CONTEXTS` to bucket it as `"other"` until the schema catches up. Keep in sync with:
 // snowplow/iglu-client-embedded/schemas/com.metabase/search/jsonschema/1-1-4
 // Non-null in the event types below even though the wire schema allows null: `toSnowplowContext`
 // always yields a value (worst case `"other"`), but keeping the schema nullable avoids a major (MODEL)
