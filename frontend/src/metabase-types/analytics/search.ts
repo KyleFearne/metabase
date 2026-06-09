@@ -63,7 +63,7 @@ export type SearchQueryEvent = ValidateEvent<{
   search_term_hash: string | null;
   search_term: string | null;
   runtime_milliseconds: number;
-  context: SearchContext | null;
+  context: SearchContext;
   total_results: number;
   page_results: number | null;
   content_type: SearchContentType[] | null;
@@ -83,7 +83,7 @@ export type SearchClickEvent = ValidateEvent<{
   event: "search_click";
   position: number;
   target_type: "item" | "view_more";
-  context: SearchContext | null;
+  context: SearchContext;
   search_engine: string | null;
   request_id: string | null;
   entity_model: string | null;

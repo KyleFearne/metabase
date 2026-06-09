@@ -87,7 +87,7 @@ export const trackSearchRequest = (
       verified_items: !!searchRequest.verified,
       search_native_queries: !!searchRequest.search_native_query,
       search_archived: !!searchRequest.archived,
-      context: searchRequest.context ?? null,
+      context: searchRequest.context,
       runtime_milliseconds: duration,
       total_results: searchResponse.total,
       page_results: searchResponse.limit,
