@@ -30,7 +30,7 @@
       "maximum": 2147483647
     },
     "context": {
-      "description": "Source of the search event",
+      "description": "Source of the search event. Non-null in practice (the frontend sends a value on every request), but kept nullable here to avoid a major (MODEL) version bump, which would fork events into a separate warehouse table.",
       "type": [
         "string",
         "null"

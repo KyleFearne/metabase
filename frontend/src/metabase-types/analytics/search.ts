@@ -47,6 +47,8 @@ type SearchContentType =
 // Intentionally redefined here (rather than importing `SearchContext` from metabase-types/api) so a
 // change to the set forces a corresponding change to the snowplow `search` schema's `context` enum:
 // snowplow/iglu-client-embedded/schemas/com.metabase/search/jsonschema/1-1-4
+// Non-null here even though the wire schema still allows null: we always send a context, but keeping
+// the schema nullable avoids a major (MODEL) version bump that would fork events into a new table.
 type SnowplowSearchContext =
   | "browse"
   | "command-palette"
