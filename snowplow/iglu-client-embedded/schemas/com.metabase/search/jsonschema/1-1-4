@@ -45,10 +45,10 @@
         "entity-picker",
         "library",
         "model-migration",
-        "other",
         "search-app",
         "search-bar",
-        "type-filter"
+        "type-filter",
+        "other"
       ],
       "maxLength": 1024
     },

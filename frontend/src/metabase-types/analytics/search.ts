@@ -64,10 +64,10 @@ type SnowplowSearchContext =
   | "entity-picker"
   | "library"
   | "model-migration"
-  | "other"
   | "search-app"
   | "search-bar"
-  | "type-filter";
+  | "type-filter"
+  | "other"; // catch-all, kept last rather than alphabetized with the real surfaces
 
 // Frontend contexts not yet in the snowplow enum above; emitted as `"other"` until the iglu schema is
 // bumped to include them. Empty when everything is in sync. To migrate one, add it to the enum (and the
