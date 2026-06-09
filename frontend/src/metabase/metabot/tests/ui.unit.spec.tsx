@@ -11,6 +11,7 @@ import * as domModule from "metabase/utils/dom";
 import { createMockUser } from "metabase-types/api/mocks";
 
 import { Metabot } from "../components/Metabot";
+import { MetabotChat } from "../components/MetabotChat";
 
 import {
   assertNotVisible,
@@ -36,9 +37,100 @@ describe("metabot > ui", () => {
 
   it("should warn that metabot can be inaccurate", async () => {
     setup();
+    const disclaimer = await screen.findByText(
+      "Metabot isn't perfect. Double-check results.",
+    );
+    expect(disclaimer).toBeInTheDocument();
+    // on the default sidebar surface the disclaimer lives in the header, above the input
+    const input = await screen.findByTestId("metabot-chat-input");
     expect(
-      await screen.findByText("Metabot isn't perfect. Double-check results."),
-    ).toBeInTheDocument();
+      input.compareDocumentPosition(disclaimer) &
+        Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeTruthy();
+  });
+
+  it("renders the disclaimer below the input on the `ask` surface", async () => {
+    setup({
+      ui: (
+        <MetabotChat
+          config={{
+            agentId: "ask",
+            disclaimerUnderInput: true,
+            preventClose: true,
+            suggestionModels: [],
+          }}
+        />
+      ),
+    });
+    const disclaimer = await screen.findByText(
+      "Metabot isn't perfect. Double-check results.",
+    );
+    // it should sit after (below) the input rather than in the header
+    const input = await screen.findByTestId("metabot-chat-input");
+    expect(
+      input.compareDocumentPosition(disclaimer) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  describe("full-page greeting", () => {
+    const askConfig = {
+      agentId: "ask" as const,
+      disclaimerUnderInput: true,
+      fullPageLayout: true,
+      preventClose: true,
+      suggestionModels: [],
+    };
+    const greetingTitle =
+      /What would you like to know\?|What do you want to explore\?|What are you looking to learn\?/;
+
+    it("shows the centered greeting when the conversation is empty", async () => {
+      setup({
+        ui: <MetabotChat config={askConfig} />,
+        promptSuggestions: [{ prompt: "Show me all orders" }],
+      });
+
+      expect(await screen.findByText(greetingTitle)).toBeInTheDocument();
+      expect(await screen.findByText("Show me all orders")).toBeInTheDocument();
+      expect(screen.getByTestId("metabot-chat-input")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("metabot-chat-messages"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("replaces the greeting with the inline conversation after sending a message", async () => {
+      setup({ ui: <MetabotChat config={askConfig} /> });
+      mockAgentEndpoint({ textChunks: whoIsYourFavoriteResponse });
+
+      expect(await screen.findByText(greetingTitle)).toBeInTheDocument();
+
+      await enterChatMessage("Who is your favorite?");
+
+      expect(
+        await screen.findByText("Who is your favorite?"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(greetingTitle)).not.toBeInTheDocument();
+    });
+
+    it("shows the AI provider setup notice in the greeting when not configured", async () => {
+      setup({
+        ui: <MetabotChat config={askConfig} />,
+        currentUser: createMockUser({ is_superuser: true }),
+        isConfigured: false,
+      });
+
+      expect(
+        await screen.findByText("To use AI exploration, please", {
+          exact: false,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "connect to a model" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("metabot-chat-input"),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("should show a setup prompt and disable chat input when metabot is not configured", async () => {

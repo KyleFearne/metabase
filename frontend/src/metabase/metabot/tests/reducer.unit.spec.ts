@@ -6,6 +6,7 @@ import {
   activateSuggestedTransform,
   addSuggestedTransform,
   deactivateSuggestedTransform,
+  metabotActions,
   metabotReducer,
 } from "metabase/metabot/state";
 import type { MetabotSuggestedTransform } from "metabase-types/api";
@@ -232,6 +233,20 @@ describe("metabot reducer", () => {
           }),
         ]);
       });
+    });
+  });
+
+  describe("the full-page `ask` conversation", () => {
+    it("exists in the initial state with the default profile", () => {
+      const state = getMetabotInitialState();
+      expect(state.conversations.ask).toBeDefined();
+      expect(state.conversations.ask?.profileOverride).toBeUndefined();
+    });
+
+    it("can be reset independently", () => {
+      const store = createTestStore();
+      store.dispatch(metabotActions.resetConversation({ agentId: "ask" }));
+      expect(store.getState().metabot.conversations.ask).toBeDefined();
     });
   });
 

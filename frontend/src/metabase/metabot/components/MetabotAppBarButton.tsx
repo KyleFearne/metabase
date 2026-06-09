@@ -5,7 +5,10 @@ import {
   useMetabotName,
   useUserMetabotPermissions,
 } from "metabase/metabot/hooks";
+import { useSelector } from "metabase/redux";
+import { getLocation } from "metabase/selectors/routing";
 import { ActionIcon, type ActionIconProps, Tooltip } from "metabase/ui";
+import * as Urls from "metabase/urls";
 import { METAKEY } from "metabase/utils/browser";
 
 import { trackMetabotChatOpened } from "../analytics";
@@ -23,8 +26,11 @@ export function MetabotAppBarButton({
   const { hasMetabotAccess } = useUserMetabotPermissions();
   const metabot = useMetabotAgent("omnibot");
   const metabotName = useMetabotName();
+  const pathname = useSelector((state) => getLocation(state).pathname);
 
-  if (!hasMetabotAccess) {
+  const isAskPage = pathname === Urls.newQuestion({ mode: "ask" });
+
+  if (!hasMetabotAccess || isAskPage) {
     return null;
   }
 

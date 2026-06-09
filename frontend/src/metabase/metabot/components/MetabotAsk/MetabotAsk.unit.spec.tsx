@@ -1,69 +1,51 @@
-import { Route } from "react-router";
-
-import { setupBookmarksEndpoints } from "__support__/server-mocks";
-import { mockSettings } from "__support__/settings";
 import { renderWithProviders, screen } from "__support__/ui";
-import { useGetSuggestedMetabotPromptsQuery } from "metabase/api";
-import {
-  useMetabotAgent,
-  useUserMetabotPermissions,
-} from "metabase/metabot/hooks";
-import { createMockState } from "metabase/redux/store/mocks";
+import type { MetabotConfig } from "metabase/metabot/components/Metabot";
+import { useMetabotAgent } from "metabase/metabot/hooks";
 
 import { MetabotAsk } from "./MetabotAsk";
-
-jest.mock("metabase/api", () => ({
-  ...jest.requireActual("metabase/api"),
-  useGetSuggestedMetabotPromptsQuery: jest.fn(),
-}));
 
 jest.mock("metabase/metabot/hooks", () => ({
   ...jest.requireActual("metabase/metabot/hooks"),
   useMetabotAgent: jest.fn(),
-  useUserMetabotPermissions: jest.fn(),
 }));
 
-type SetupOptions = {
-  showIllustrations?: boolean;
-  prompt?: string;
-  suggestedPrompts?: { prompt: string }[];
-};
+jest.mock("metabase/metabot/components/MetabotChat", () => ({
+  MetabotChat: ({ config }: { config: Pick<MetabotConfig, "agentId"> }) => (
+    <div data-testid="metabot-chat">{config.agentId}</div>
+  ),
+}));
 
-function setup({
-  showIllustrations = true,
-  prompt = "",
-  suggestedPrompts = [],
-}: SetupOptions = {}) {
-  jest.mocked(useUserMetabotPermissions).mockReturnValue({
-    hasNlqAccess: true,
-    canUseNlq: true,
-  } as any);
-
-  setupBookmarksEndpoints([]);
-
-  jest.mocked(useMetabotAgent).mockReturnValue({
-    setVisible: jest.fn(),
-    resetConversation: jest.fn(),
-    submitInput: jest.fn(),
+function setup() {
+  const setVisible = jest.fn();
+  const metabotAgent = {
+    activeToolCalls: [],
     cancelRequest: jest.fn(),
-    setPrompt: jest.fn(),
-    metabotId: "default",
+    debugMode: false,
     isDoingScience: false,
-    prompt,
-    promptInputRef: { current: null },
-  } as any);
-  jest.mocked(useGetSuggestedMetabotPromptsQuery).mockReturnValue({
-    currentData: { prompts: suggestedPrompts },
-  } as any);
+    isLongConversation: false,
+    messages: [],
+    metabotId: 1,
+    prompt: "",
+    promptInputRef: undefined,
+    reactions: {
+      navigateToPath: null,
+      suggestedCodeEdits: {},
+      suggestedTransforms: [],
+    },
+    resetConversation: jest.fn(),
+    retryMessage: jest.fn(),
+    setProfileOverride: jest.fn(),
+    setPrompt: jest.fn(),
+    setVisible,
+    submitInput: jest.fn(),
+    visible: false,
+  } satisfies ReturnType<typeof useMetabotAgent>;
 
-  const settings = mockSettings({
-    "metabot-show-illustrations": showIllustrations,
-  });
+  jest.mocked(useMetabotAgent).mockReturnValue(metabotAgent);
 
-  return renderWithProviders(<Route path="/" component={MetabotAsk} />, {
-    withRouter: true,
-    storeInitialState: createMockState({ settings }),
-  });
+  renderWithProviders(<MetabotAsk />);
+
+  return { setVisible };
 }
 
 describe("MetabotAsk", () => {
@@ -71,36 +53,16 @@ describe("MetabotAsk", () => {
     jest.clearAllMocks();
   });
 
-  it("renders the Metabot illustration when metabot-show-illustrations is true", () => {
-    setup({ showIllustrations: true });
-    expect(screen.getByRole("img", { name: "Metabot" })).toBeInTheDocument();
+  it("renders the full-page chat on the `ask` surface", () => {
+    setup();
+
+    expect(screen.getByTestId("metabot-chat")).toHaveTextContent("ask");
   });
 
-  it("hides the Metabot illustration when metabot-show-illustrations is false", () => {
-    setup({ showIllustrations: false });
-    expect(
-      screen.queryByRole("img", { name: "Metabot" }),
-    ).not.toBeInTheDocument();
-  });
+  it("closes the global Metabot sidebar when the full-page surface mounts", () => {
+    const { setVisible } = setup();
 
-  it("renders suggested prompts when the API returns them", () => {
-    setup({
-      suggestedPrompts: [
-        { prompt: "Show me top customers" },
-        { prompt: "How many orders this month?" },
-      ],
-    });
-    expect(screen.getByText("Show me top customers")).toBeInTheDocument();
-    expect(screen.getByText("How many orders this month?")).toBeInTheDocument();
-  });
-
-  it("disables the send button when the prompt is empty", () => {
-    setup({ prompt: "" });
-    expect(screen.getByTestId("metabot-send-message")).toBeDisabled();
-  });
-
-  it("enables the send button when the prompt is non-empty", () => {
-    setup({ prompt: "anything" });
-    expect(screen.getByTestId("metabot-send-message")).toBeEnabled();
+    expect(useMetabotAgent).toHaveBeenCalledWith("omnibot");
+    expect(setVisible).toHaveBeenCalledWith(false);
   });
 });

@@ -42,6 +42,21 @@
   overflow: auto;
 }
 
+.containerFullPage .messagesContainer {
+  padding-inline: 0;
+  scrollbar-gutter: stable both-edges;
+}
+
+.containerFullPage .header,
+.containerFullPage .messages,
+.containerFullPage .promptSuggestionsContainer,
+.containerFullPage .textInputContainer {
+  width: 100%;
+  max-width: 48rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
 .messages {
   display: flex;
   flex-direction: column;

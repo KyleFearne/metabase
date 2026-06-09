@@ -50,7 +50,9 @@ const MetabotErrorFallback = ({ onRetry }: { onRetry: () => void }) => {
 // TODO: add test coverage for these
 export interface MetabotConfig {
   agentId?: MetabotAgentId;
+  disclaimerUnderInput?: boolean;
   emptyText?: string;
+  fullPageLayout?: boolean;
   hideSuggestedPrompts?: boolean;
   preventClose?: boolean;
   preventRetryMessage?: boolean;
