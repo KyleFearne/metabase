@@ -1,9 +1,7 @@
 import { trackSchemaEvent } from "metabase/analytics";
 import { hashSearchTerm, shouldReportSearchTerm } from "metabase/utils/search";
+import { toSnowplowContext } from "metabase-types/analytics";
 import type { SearchContext } from "metabase-types/api";
-
-// Every `SearchContext` value is published; keep the `context` enum in the iglu `search` schema
-// (snowplow/iglu-client-embedded/schemas/com.metabase/search/jsonschema/*) in sync with `SearchContext`.
 
 type TrackSearchClickParams = {
   itemType: "item" | "view_more";
@@ -31,7 +29,7 @@ export const trackSearchClick = ({
       event: "search_click",
       position,
       target_type: itemType,
-      context,
+      context: toSnowplowContext(context),
       search_engine: searchEngine,
       request_id: requestId,
       entity_model: entityModel,
