@@ -311,7 +311,7 @@
        :args   (when-let [a (:arguments block)] (json/encode a))
        :status "ended"}
 
-      ;; Data part: {:type "data" :data-type "navigate_to" :version 1 :data ...}
+      ;; Data part: {:type "data" :data-type "generated_entity" :version 1 :data ...}
       (= "data" block-type)
       (cond-> {:id   (str (random-uuid))
                :role "agent"

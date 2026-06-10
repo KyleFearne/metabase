@@ -4,10 +4,10 @@ import { noop } from "underscore";
 
 import { useGetAdhocQueryQuery } from "metabase/api";
 import type { GeneratedCard } from "metabase/api/ai-streaming/schemas";
+import { getGeneratedCardPath } from "metabase/api/ai-streaming/schemas";
 import { ForwardRefLink } from "metabase/common/components/Link";
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
 import { Anchor, Box, Center, Flex } from "metabase/ui";
-import { utf8_to_b64url } from "metabase/utils/encoding";
 import Visualization from "metabase/visualizations/components/Visualization";
 import { ErrorView } from "metabase/visualizations/components/Visualization/ErrorView";
 import {
@@ -23,12 +23,9 @@ import S from "./InlineChart.module.css";
  * the conversation: it runs the card's embedded query ad-hoc and renders the
  * result; the title bar links out to the full question.
  */
-export function InlineChart({
-  value: { title, display, query },
-}: {
-  value: GeneratedCard;
-}) {
-  const datasetQuery = query.query;
+export function InlineChart({ value }: { value: GeneratedCard }) {
+  const { title, display } = value;
+  const datasetQuery = value.query.query;
 
   // A minimal ad-hoc card (no id/name); Visualization renders it read-only.
   const card = useMemo(
@@ -42,10 +39,7 @@ export function InlineChart({
   );
 
   // Open-in-new-tab link: the same /question#<hash> the QB deserializes.
-  const link = useMemo(
-    () => `/question#${utf8_to_b64url(JSON.stringify(card))}`,
-    [card],
-  );
+  const link = useMemo(() => getGeneratedCardPath(value), [value]);
 
   const { data: dataset, error } = useGetAdhocQueryQuery(datasetQuery);
 

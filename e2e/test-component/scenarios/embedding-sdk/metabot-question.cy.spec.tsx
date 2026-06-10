@@ -30,8 +30,20 @@ const adHocQuestionPath = `/question#${btoa(
 )}`;
 
 const metabotResponse = `0:"Here is the [question link](${adHocQuestionPath})"`;
-const metabotResponseWithNavigateTo = `${metabotResponse}
-2:{"type":"navigate_to","version":1,"value":"${adHocQuestionPath}"}`;
+// Metabot surfaces a chart to the SDK via a `generated_entity` card data part.
+const generatedCardChunk = `2:${JSON.stringify({
+  type: "generated_entity",
+  version: 1,
+  value: {
+    type: "card",
+    id: "card-1",
+    title: "Question",
+    query: { id: "query-1", query: { database: 1, type: "query", query } },
+    display: "table",
+  },
+})}`;
+const metabotResponseWithChart = `${metabotResponse}
+${generatedCardChunk}`;
 
 const metabotRetryResponse = `0:"Retry: Here is the [question link](${adHocQuestionPath})"`;
 
@@ -72,7 +84,7 @@ describe("scenarios > embedding-sdk > metabot-question", () => {
   };
 
   it("should show drill-through results after drilling from a metabot question", () => {
-    setup(metabotResponseWithNavigateTo);
+    setup(metabotResponseWithChart);
 
     mountSdkContent(<MetabotQuestion />);
 
@@ -96,7 +108,7 @@ describe("scenarios > embedding-sdk > metabot-question", () => {
   });
 
   it("should automatically show the ad-hoc question for the last agent message containing ad-hoc question link", () => {
-    setup(metabotResponseWithNavigateTo);
+    setup(metabotResponseWithChart);
 
     mountSdkContent(<MetabotQuestion />);
 
@@ -110,7 +122,7 @@ describe("scenarios > embedding-sdk > metabot-question", () => {
   it("should allow saving a question", () => {
     cy.intercept("POST", "/api/card").as("postCard");
 
-    setup(metabotResponseWithNavigateTo);
+    setup(metabotResponseWithChart);
 
     cy.get("@collectionId").then((collectionId) => {
       mountSdkContent(

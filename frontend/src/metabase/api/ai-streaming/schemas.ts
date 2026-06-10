@@ -1,5 +1,6 @@
 import * as Yup from "yup";
 
+import { utf8_to_b64url } from "metabase/utils/encoding";
 import type {
   CardDisplayType,
   DatasetQuery,
@@ -15,7 +16,6 @@ export const dataPartSchema = Yup.object({
 });
 
 export const knownDataPartTypes = [
-  "navigate_to",
   "state",
   "todo_list",
   "code_edit",
@@ -49,10 +49,16 @@ export type GeneratedCard = {
   display?: CardDisplayType;
 };
 
-export type GeneratedEntity = GeneratedCard;
+export type GeneratedDashboard = {
+  type: "dashboard";
+  id?: number;
+  title: string;
+  url: string;
+};
+
+export type GeneratedEntity = GeneratedCard | GeneratedDashboard;
 
 export type KnownDataPart =
-  | { type: "navigate_to"; version: 1; value: string }
   | { type: "state"; version: 1; value: Record<string, any> }
   | { type: "todo_list"; version: 1; value: MetabotTodoItem[] }
   | { type: "transform_suggestion"; version: 1; value: SuggestedTransform }
@@ -60,6 +66,25 @@ export type KnownDataPart =
   | { type: "generated_entity"; version: 1; value: GeneratedEntity }
   | { type: "adhoc_viz"; version: 1; value: AdhocVizValue }
   | { type: "static_viz"; version: 1; value: StaticVizValue };
+
+export function getGeneratedCardPath(card: GeneratedCard): string {
+  const minimalCard = {
+    dataset_query: card.query.query,
+    display: card.display ?? "table",
+    visualization_settings: {},
+    displayIsLocked: card.display != null,
+  };
+  return `/question#${utf8_to_b64url(JSON.stringify(minimalCard))}`;
+}
+
+export function getGeneratedEntityPath(entity: GeneratedEntity): string {
+  switch (entity.type) {
+    case "card":
+      return getGeneratedCardPath(entity);
+    case "dashboard":
+      return entity.url;
+  }
+}
 
 export const toolCallPartSchema = Yup.object({
   toolCallId: Yup.string().required(),

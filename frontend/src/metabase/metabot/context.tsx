@@ -172,7 +172,6 @@ export const MetabotProvider = ({
         user_is_viewing: [],
         current_time_with_timezone: dayjs.tz(dayjs()).format(),
         capabilities: _.compact([
-          "frontend:navigate_user_v1",
           agentId === "ask" && "frontend:inline_viz_v1",
           hasDataAccess && "permission:save_questions",
           hasNativeWrite && "permission:write_sql_queries",

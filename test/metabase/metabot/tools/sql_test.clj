@@ -145,8 +145,8 @@
               (is (str/starts-with? instructions "The SQL query has a syntax error"))
               (is (str/starts-with? output "<result>\nSQL query construction failed.\n</result>\n<instructions>\nThe SQL query has a syntax error")))))))))
 
-(deftest edit-sql-query-inline-viz-test
-  (testing "edit_sql_query surfaces results inline vs navigate per the inline-viz capability"
+(deftest edit-sql-query-viz-part-test
+  (testing "edit_sql_query emits a generated_entity card unless an open code-editor buffer wins"
     (mt/test-drivers #{:h2}
       (mt/with-current-user (mt/user->id :crowberto)
         (mt/with-temp [:model/Database {:as db} {:engine :h2}]
@@ -163,20 +163,15 @@
                                    :checklist "- [x] checked"
                                    :edits     [{:old_string "SELECT *" :new_string "SELECT id"}]
                                    :title     "Results"}))))]
-              (testing "capability present -> a single generated_entity (native) part"
-                (let [parts  (:data-parts (run {:capabilities #{"frontend:inline_viz_v1"}}))
+              (testing "no code-editor buffer -> a single generated_entity (native) part"
+                (let [parts  (:data-parts (run {}))
                       entity (:data (first parts))]
                   (is (= 1 (count parts)))
                   (is (= "generated_entity" (:data-type (first parts))))
                   (is (= "card" (:type entity)))
                   (is (= :native (get-in entity [:query :query :type])))))
-              (testing "capability absent -> a single navigate_to part"
-                (let [parts (:data-parts (run {:capabilities #{}}))]
-                  (is (= 1 (count parts)))
-                  (is (= "navigate_to" (:data-type (first parts))))))
-              (testing "an open code-editor buffer wins regardless of capability"
-                (let [parts (:data-parts (run {:capabilities     #{"frontend:inline_viz_v1"}
-                                               :user_is_viewing [{:type    "code_editor"
+              (testing "an open code-editor buffer wins"
+                (let [parts (:data-parts (run {:user_is_viewing [{:type    "code_editor"
                                                                   :buffers [{:id "buf-1"}]}]}))]
                   (is (= 1 (count parts)))
                   (is (= "code_edit" (:data-type (first parts)))))))))))))

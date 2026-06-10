@@ -10,7 +10,9 @@ import { Stack } from "metabase/ui";
 import S from "./MetabotQuestion.module.css";
 
 const isQuestionNavigationMessage = (message: MetabotChatMessage) =>
-  message.type === "data_part" && message.part.type === "navigate_to";
+  message.type === "data_part" &&
+  message.part.type === "generated_entity" &&
+  message.part.value.type === "card";
 
 export function MetabotChatHistory() {
   const metabot = useMetabotAgent();

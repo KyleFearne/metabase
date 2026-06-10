@@ -41,13 +41,6 @@
   []
   (get (current-memory) :context))
 
-(defn inline-viz-capable?
-  "True when the frontend surface for this request declared it can render
-  visualizations inline (capability `frontend:inline_viz_v1`). Drives whether
-  chart/query tools emit a `generated_entity` data part (inline) vs `navigate_to`."
-  []
-  (contains? (set (:capabilities (current-context))) "frontend:inline_viz_v1"))
-
 (defn with-memory
   "Helper for debugging memory-bound tools when needed."
   [f]
