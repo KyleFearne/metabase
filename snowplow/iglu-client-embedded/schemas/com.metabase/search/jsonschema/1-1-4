@@ -36,6 +36,7 @@
         "null"
       ],
       "enum": [
+        "basic-actions",
         "browse",
         "command-palette",
         "data-picker",

@@ -82,6 +82,7 @@ export const toSnowplowContentTypes = (
 // always yields a value (worst case `"other"`), but keeping the schema nullable avoids a major (MODEL)
 // version bump that would fork events into a new warehouse table.
 type SnowplowSearchContext =
+  | "basic-actions"
   | "browse"
   | "command-palette"
   | "data-picker"
