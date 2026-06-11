@@ -92,7 +92,7 @@
   (testing ":hnsw and :brute-force need no session GUCs"
     (is (empty? (#'semantic.index/vector-session-settings {:vector-search-strategy :hnsw})))
     (is (empty? (#'semantic.index/vector-session-settings {:vector-search-strategy :brute-force}))))
-  (testing ":hnsw-iterative-* emits iterative_scan / ef_search / max_scan_tuples SET LOCALs; the strategy sets the order"
+  (testing ":hnsw-iterative-* emits iterative_scan/ef_search/max_scan_tuples SET LOCALs; the strategy sets the order"
     (is (= ["SET LOCAL hnsw.iterative_scan = strict_order"
             "SET LOCAL hnsw.ef_search = 100"
             "SET LOCAL hnsw.max_scan_tuples = 50000"]
@@ -164,14 +164,20 @@
           (is (not (semantic.tu/table-exists-in-db? table-name)))
           (is (= {} (semantic.tu/table-indexes table-name))))
         (testing "create! produces the table and every contracted index"
-          (semantic.index/create-index-table-if-not-exists! (semantic.env/get-pgvector-datasource!) index {:force-reset? false})
+          (semantic.index/create-index-table-if-not-exists!
+           (semantic.env/get-pgvector-datasource!)
+           index
+           {:force-reset? false})
           (is (semantic.tu/table-exists-in-db? table-name))
           (is (=? (expected-index-defs index) (semantic.tu/table-indexes table-name))))
         (testing "force-reset? drops and recreates: data is wiped and the contract still holds"
           ;; rows that survive the reset would mean force-reset? was silently ignored
           (semantic.tu/upsert-index! (semantic.tu/mock-documents))
           (is (pos? (semantic.tu/index-count index)))
-          (semantic.index/create-index-table-if-not-exists! (semantic.env/get-pgvector-datasource!) index {:force-reset? true})
+          (semantic.index/create-index-table-if-not-exists!
+           (semantic.env/get-pgvector-datasource!)
+           index
+           {:force-reset? true})
           (is (zero? (semantic.tu/index-count index)))
           (is (=? (expected-index-defs index) (semantic.tu/table-indexes table-name))))))))
 
