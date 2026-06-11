@@ -494,16 +494,14 @@
       (catch Exception _ false))))
 
 #_{:clj-kondo/ignore [:metabase/test-helpers-use-non-thread-safe-functions]}
-(defn table-has-index?
-  [table-name index-name]
-  (when table-name
-    (try
-      (let [result (jdbc/execute! (semantic.env/get-pgvector-datasource!)
-                                  ["SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename = ? AND indexname = ?)"
-                                   (name table-name)
-                                   (name index-name)])]
-        (-> result first vals first))
-      (catch Exception _ false))))
+(defn table-indexes
+  "Map of index name -> pg_indexes indexdef for `table-name`; empty when the table does not exist."
+  [table-name]
+  (into {}
+        (map (juxt :indexname :indexdef))
+        (jdbc/execute! (semantic.env/get-pgvector-datasource!)
+                       ["SELECT indexname, indexdef FROM pg_indexes WHERE tablename = ?" (name table-name)]
+                       {:builder-fn jdbc.rs/as-unqualified-lower-maps})))
 
 (defn get-metadata-rows [pgvector index-metadata]
   (jdbc/execute! pgvector

@@ -142,22 +142,34 @@
             (is (not (contains? (set (map first @analytics-calls))
                                 :metabase-search/semantic-vector-inner-ms)))))))))
 
+(defn- expected-index-defs
+  "The index-DDL contract of [[semantic.index/create-index-table-if-not-exists!]]: each index it must create,
+  keyed by name, with the indexdef pg_indexes must report for it (access method, column, opclass).
+  The pkey and the (model, model_id) unique-constraint indexes come from the table schema, not CREATE INDEX
+  statements, so they are not part of this contract."
+  [index]
+  {(semantic.index/hnsw-index-name index)         #"CREATE INDEX .* USING hnsw \(embedding vector_cosine_ops\)"
+   (semantic.index/fts-index-name index)          #"CREATE INDEX .* USING gin \(text_search_vector\)"
+   (semantic.index/fts-native-index-name index)   #"CREATE INDEX .* USING gin \(text_search_with_native_query_vector\)"
+   (#'semantic.index/content-index-name index)    #"CREATE INDEX .* USING btree \(content\)"})
+
 (deftest create-index-table!-test
   (mt/with-premium-features #{:semantic-search}
     (with-open [index-ref (semantic.tu/open-temp-index!)]
-      ;; open-temp-index-table! creates the temp table, so drop it in order to test create!.
-      (semantic.index/drop-index-table! (semantic.env/get-pgvector-datasource!) semantic.tu/mock-index)
-      (testing "index table is not present before create!"
-        (is (not (semantic.tu/table-exists-in-db? (:table-name @index-ref))))
-        (is (not (semantic.tu/table-has-index? (:table-name @index-ref) (semantic.index/hnsw-index-name @index-ref))))
-        (is (not (semantic.tu/table-has-index? (:table-name @index-ref) (semantic.index/fts-index-name @index-ref))))
-        (is (not (semantic.tu/table-has-index? (:table-name @index-ref) (semantic.index/fts-native-index-name @index-ref)))))
-      (testing "index table is present after create!"
-        (semantic.index/create-index-table-if-not-exists! (semantic.env/get-pgvector-datasource!) semantic.tu/mock-index {:force-reset? false})
-        (is (semantic.tu/table-exists-in-db? (:table-name @index-ref)))
-        (is (semantic.tu/table-has-index? (:table-name @index-ref) (semantic.index/hnsw-index-name @index-ref)))
-        (is (semantic.tu/table-has-index? (:table-name @index-ref) (semantic.index/fts-index-name @index-ref)))
-        (is (semantic.tu/table-has-index? (:table-name @index-ref) (semantic.index/fts-native-index-name @index-ref)))))))
+      (let [index      @index-ref
+            table-name (:table-name index)]
+        ;; open-temp-index! creates the temp table, so drop it in order to test create!.
+        (semantic.index/drop-index-table! (semantic.env/get-pgvector-datasource!) index)
+        (testing "neither the table nor any of its indexes is present before create!"
+          (is (not (semantic.tu/table-exists-in-db? table-name)))
+          (is (= {} (semantic.tu/table-indexes table-name))))
+        (testing "create! produces the table and every contracted index"
+          (semantic.index/create-index-table-if-not-exists! (semantic.env/get-pgvector-datasource!) index {:force-reset? false})
+          (is (semantic.tu/table-exists-in-db? table-name))
+          (is (=? (expected-index-defs index) (semantic.tu/table-indexes table-name))))
+        (testing "force-reset? drops and recreates the same contract"
+          (semantic.index/create-index-table-if-not-exists! (semantic.env/get-pgvector-datasource!) index {:force-reset? true})
+          (is (=? (expected-index-defs index) (semantic.tu/table-indexes table-name))))))))
 
 (deftest drop-index-table!-test
   (mt/with-premium-features #{:semantic-search}
