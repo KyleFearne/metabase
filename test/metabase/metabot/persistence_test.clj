@@ -40,7 +40,7 @@
   (testing "resolved tool part carries args and result"
     (let [result (metabot-persistence/message->chat-messages
                   {:role :assistant
-                   :data [{:type "tool-search" :tool_call_id "call-1" :state "output-available"
+                   :data [{:type "tool-search" :toolCallId "call-1" :state "output-available"
                            :input {:query "foo"} :output {:output "rows!" :structured_output {:query-id "q"}}}]})]
       (is (= 1 (count result)))
       (is (= {:id       "call-1"
@@ -58,8 +58,8 @@
   (testing "errored tool part is flagged and carries no result"
     (let [result (metabot-persistence/message->chat-messages
                   {:role :assistant
-                   :data [{:type "tool-boom" :tool_call_id "call-2" :state "output-error"
-                           :input {} :error_text "exploded"}]})]
+                   :data [{:type "tool-boom" :toolCallId "call-2" :state "output-error"
+                           :input {} :errorText "exploded"}]})]
       (is (true? (:is_error (first result))))
       (is (nil? (:result (first result)))))))
 
@@ -67,7 +67,7 @@
   (testing "unresolved tool part renders without result/error fields"
     (let [result (metabot-persistence/message->chat-messages
                   {:role :assistant
-                   :data [{:type "tool-search" :tool_call_id "call-3" :state "input-available" :input {}}]})]
+                   :data [{:type "tool-search" :toolCallId "call-3" :state "input-available" :input {}}]})]
       (is (= 1 (count result)))
       (is (= "tool_call" (:type (first result))))
       (is (not (contains? (first result) :result)))
@@ -98,7 +98,7 @@
   (let [result (metabot-persistence/messages->chat-messages
                 [{:role :user      :data [{:type "text" :text "hi"}]}
                  {:role :assistant :data [{:type "text" :text "hello!"}
-                                          {:type "tool-f" :tool_call_id "t1" :state "output-available"
+                                          {:type "tool-f" :toolCallId "t1" :state "output-available"
                                            :input {:x 1} :output {:output "ok"}}]}])]
     (is (= 3 (count result)))
     (is (= ["user" "agent" "agent"] (map :role result)))
@@ -458,7 +458,7 @@
                       {:role :assistant :finished false
                        :error (json/encode {:message "boom"})
                        :data [{:type "text" :text "first"}
-                              {:type "tool-search" :tool_call_id "call-1" :state "input-available" :input nil}
+                              {:type "tool-search" :toolCallId "call-1" :state "input-available" :input nil}
                               {:type "text" :text "last"}]})
           annotated? #(or (contains? % :finished) (contains? % :error))]
       (is (=? [{:message "first"}
