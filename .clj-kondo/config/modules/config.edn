@@ -1169,7 +1169,10 @@
            sync
            util
            warehouse-schema}
-   :model-imports #{:model/Card :model/Database :model/Field :model/Table}}
+   :model-imports #{:model/Card
+                    :model/Database
+                    :model/Field
+                    :model/Table}}
 
   logger
   {:team "DevEx"
@@ -3097,9 +3100,7 @@
    :uses #{api
            models
            util}
-   :model-imports #{:model/Database
-                    :model/Field
-                    :model/Table}}
+   :model-imports #{:model/Database :model/Field :model/Table}}
 
   enterprise/gsheets
   {:team "Cloud"
@@ -3375,7 +3376,10 @@
            task
            tracing
            util}
-   :model-imports #{:model/Card :model/Collection :model/Dashboard}}
+   :model-imports #{:model/Card
+                    :model/Collection
+                    :model/Dashboard
+                    :model/Table}}
 
   enterprise/serialization
   {:team "Graphy"
@@ -3567,8 +3571,7 @@
            workspaces
            enterprise/serialization}
    :model-exports #{:model/Workspace}
-   :model-imports #{:model/Database
-                    :model/User}}}
+   :model-imports #{:model/Database :model/User}}}
 
  ;; namespaces matching these patterns (with `re-find`) are excluded from the module linter. Since regex literals
  ;; aren't allowed in EDN just used the `(str <regex>)` version i.e. two slashes instead of one.
