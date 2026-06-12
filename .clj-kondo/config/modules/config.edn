@@ -3285,6 +3285,7 @@
            api
            app-db
            collections
+           data-apps
            events
            models
            premium-features
