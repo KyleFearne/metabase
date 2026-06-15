@@ -3,8 +3,8 @@ import { t } from "ttag";
 
 import { useCreateDashboardMutation } from "metabase/api";
 import { FormFooter } from "metabase/common/components/FormFooter";
+import { canPlaceEntityInCollection } from "metabase/common/data-studio/collection-utils";
 import { useEscapeToCloseModal } from "metabase/common/hooks/use-escape-to-close-modal";
-import { canPlaceEntityInCollection } from "metabase/data-studio/utils";
 import {
   Form,
   FormErrorMessage,
