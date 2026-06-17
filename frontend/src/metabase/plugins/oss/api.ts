@@ -14,8 +14,26 @@ const setEmbeddedHeader: OnBeforeRequestHandler = async () => {
   }
 };
 
+// Strip a null/absent `entityIdentifier` from the request params. It's an
+// embedding-only concept: guest/public/static embeds address entities by
+// token/uuid, and the embed override (see override-requests-for-embeds) keeps a
+// real `entityIdentifier` so it can fill the `:entityIdentifier` url tag.
+// Everywhere else it's null, so drop it here — once, instead of guarding every
+// call site — and it never trails along as an `?entityIdentifier=` querystring
+// param. Mutates `data` in place: the pipeline's merge can't delete keys, and
+// the client defensively copies the bag for exactly this.
+const dropNullEntityIdentifier: OnBeforeRequestHandler = async ({ data }) => {
+  if (data.entityIdentifier == null) {
+    delete data.entityIdentifier;
+  }
+};
+
 const getDefaultPluginApi = () => ({
   onBeforeRequestHandlers: {
+    // Unlike the other slots this carries real default behavior (not a no-op):
+    // it's correct for every request — in embeds `entityIdentifier` is non-null
+    // so it's a no-op there too.
+    dropNullEntityIdentifier,
     overrideRequestsForPublicEmbeds: noop,
     rewriteEmbedPreviewUrl: noop,
     setEmbeddedHeader,

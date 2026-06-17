@@ -28,11 +28,11 @@ export type OnBeforeRequestHandler = (
 /**
  * The complete, ordered request-manipulation pipeline.
  *
- * Every handler is a plugin slot — a no-op by default, populated by the owning
- * feature's init flow (SDK auth, guest/public/static embeds, the embed-referrer
- * handlers). Listing them here, rather than letting features push handlers onto
- * a dynamic array, keeps the full set of things that can rewrite an outgoing
- * request — and the order they run in — visible in one place.
+ * Almost every handler is a plugin slot — a no-op by default, populated by the
+ * owning feature's init flow (SDK auth, guest/public/static embeds, the
+ * embed-referrer handlers). Listing them here, rather than letting features push
+ * handlers onto a dynamic array, keeps the full set of things that can rewrite
+ * an outgoing request — and the order they run in — visible in one place.
  *
  * Order matters: handlers run in sequence and each one sees the result of the
  * previous one. In particular the embed-preview rewrite must run after the
@@ -40,6 +40,9 @@ export type OnBeforeRequestHandler = (
  */
 function getOnBeforeRequestHandlers(): OnBeforeRequestHandler[] {
   return [
+    // Normalize the request bag up front (drop a null embedding-only
+    // `entityIdentifier`) before the header/embed handlers run.
+    PLUGIN_API.onBeforeRequestHandlers.dropNullEntityIdentifier,
     PLUGIN_API.onBeforeRequestHandlers.setRequestClientHeaders,
     PLUGIN_API.onBeforeRequestHandlers.setEmbedPreviewHeader,
     PLUGIN_API.onBeforeRequestHandlers.setEmbeddingRequestAuthHeaders,

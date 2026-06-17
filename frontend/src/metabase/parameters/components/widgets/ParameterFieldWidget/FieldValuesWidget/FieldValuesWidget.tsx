@@ -736,7 +736,7 @@ function RemappedValue({
     dashboardId != null && value != null && isRemapped
       ? {
           dashId: dashboardId,
-          ...(entityIdentifier && { entityIdentifier }),
+          entityIdentifier,
           paramId: parameter.id,
           value,
         }
@@ -747,7 +747,7 @@ function RemappedValue({
     cardId != null && value != null && isRemapped
       ? {
           cardId,
-          ...(entityIdentifier && { entityIdentifier }),
+          entityIdentifier,
           paramId: parameter.id,
           value,
         }

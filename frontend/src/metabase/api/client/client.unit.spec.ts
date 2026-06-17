@@ -191,6 +191,35 @@ describe("api", () => {
       expect(call?.url).not.toContain("limit");
       expect(call?.url).not.toContain("cursor");
     });
+
+    it("drops a null `entityIdentifier` via the default plugin handler", async () => {
+      fetchMock.get("path:/api/card/7/params/p/remapping", { value: [] });
+
+      await apiInstance.request({
+        method: "GET",
+        url: "/api/card/:cardId/params/:paramId/remapping",
+        params: { cardId: 7, paramId: "p", entityIdentifier: null, value: 1 },
+      });
+
+      const call = fetchMock.callHistory.lastCall();
+      expect(call?.url).toContain("/api/card/7/params/p/remapping");
+      expect(call?.url).not.toContain("entityIdentifier");
+      // non-embed leftovers still get appended
+      expect(call?.url).toContain("value=1");
+    });
+
+    it("keeps a real `entityIdentifier` so the embed override can consume it", async () => {
+      fetchMock.get("path:/api/card/7/params/p/remapping", { value: [] });
+
+      await apiInstance.request({
+        method: "GET",
+        url: "/api/card/:cardId/params/:paramId/remapping",
+        params: { cardId: 7, paramId: "p", entityIdentifier: "uuid-1" },
+      });
+
+      const call = fetchMock.callHistory.lastCall();
+      expect(call?.url).toContain("entityIdentifier=uuid-1");
+    });
   });
 
   describe("request cancellation", () => {
