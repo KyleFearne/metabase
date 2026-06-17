@@ -57,6 +57,7 @@ export type BaseSdkQuestionProps = SdkQuestionIdProps & {
     | "dataPicker"
     | "isSaveEnabled"
     | "initialSqlParameters"
+    | "initialVisualizationSettings"
     | "withDownloads"
     | "withAlerts"
     | "targetCollection"
@@ -138,6 +139,7 @@ export const _SdkQuestion = ({
   targetCollection,
   initialCollection,
   initialSqlParameters,
+  initialVisualizationSettings,
   sqlParameters,
   onSqlParametersChange,
   hiddenParameters,
@@ -201,6 +203,7 @@ export const _SdkQuestion = ({
         targetCollection={targetCollection}
         initialCollection={initialCollection}
         initialSqlParameters={initialSqlParameters}
+        initialVisualizationSettings={initialVisualizationSettings}
         sqlParameters={sqlParameters}
         onSqlParametersChange={onSqlParametersChange}
         hiddenParameters={hiddenParameters}

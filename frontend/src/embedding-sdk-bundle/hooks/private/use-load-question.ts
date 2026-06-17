@@ -69,6 +69,7 @@ export function useLoadQuestion({
   // Passed when navigating from `InteractiveDashboard` or `EditableDashboard`
   deserializedCard,
   initialSqlParameters,
+  initialVisualizationSettings,
   targetDashboardId,
 }: UseLoadQuestionParams): LoadQuestionHookResult {
   const dispatch = useSdkDispatch();
@@ -128,6 +129,7 @@ export function useLoadQuestion({
           questionId,
           token: tokenRef.current,
           initialSqlParameters,
+          initialVisualizationSettings,
           targetDashboardId,
         }),
       );
@@ -183,6 +185,7 @@ export function useLoadQuestion({
     deserializedCard,
     isGuestEmbed,
     sqlParameterKey,
+    JSON.stringify(initialVisualizationSettings),
     questionId,
     targetDashboardId,
   ]);

@@ -27,6 +27,7 @@ export const loadQuestionSdk =
     questionId: initQuestionId,
     token,
     initialSqlParameters,
+    initialVisualizationSettings,
     targetDashboardId,
   }: LoadQuestionSdkParams) =>
   async (
@@ -64,11 +65,20 @@ export const loadQuestionSdk =
 
     const metadata = getMetadata(getState());
 
-    const originalQuestion = originalCard
+    let originalQuestion = originalCard
       ? new Question(originalCard, metadata)
       : undefined;
 
     let question = new Question(card, metadata);
+    if (initialVisualizationSettings) {
+      // Seed the initial settings onto both the question and its baseline so the
+      // seeded values aren't flagged as unsaved changes (matches the question's
+      // saved-vs-current dirty comparison, which includes visualization_settings).
+      question = question.updateSettings(initialVisualizationSettings);
+      originalQuestion = originalQuestion?.updateSettings(
+        initialVisualizationSettings,
+      );
+    }
     if (targetDashboardId) {
       question = question.setDashboardId(targetDashboardId);
     }

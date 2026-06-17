@@ -4,7 +4,7 @@ import type { ParameterValues } from "metabase/embedding-sdk/types/dashboard";
 import type { QueryParams } from "metabase/query_builder/actions";
 import type { ObjectId } from "metabase/visualizations/components/ObjectDetail/types";
 import type InternalQuestion from "metabase-lib/v1/Question";
-import type { Card, ParameterValuesMap } from "metabase-types/api";
+import type { Card, ParameterValuesMap, VisualizationSettings } from "metabase-types/api";
 
 import type { SdkDashboardId } from "./dashboard";
 import type { SdkEntityId, SdkEntityToken } from "./entity";
@@ -88,6 +88,14 @@ export type LoadSdkQuestionParams = {
    * For SQL questions only. A mapping of SQL parameter names to parameter values, such as `{ product_id: "42"}`
    */
   initialSqlParameters?: SqlParameterValues;
+
+  /**
+   * Visualization settings seeded onto the question once at load time.
+   * Merged on top of the question's saved `visualization_settings`.
+   * Uncontrolled: after load the user owns the settings (e.g. via the settings panel).
+   * Not persisted unless the user explicitly saves the question.
+   */
+  initialVisualizationSettings?: VisualizationSettings;
 
   /**
    * @internal

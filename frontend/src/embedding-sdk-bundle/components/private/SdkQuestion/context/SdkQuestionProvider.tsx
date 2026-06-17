@@ -76,6 +76,7 @@ export const SdkQuestionProvider = ({
   targetCollection,
   initialCollection,
   initialSqlParameters,
+  initialVisualizationSettings,
   sqlParameters,
   onSqlParametersChange,
   hiddenParameters,
@@ -191,6 +192,7 @@ export const SdkQuestionProvider = ({
     options,
     deserializedCard,
     initialSqlParameters: effectiveInitialSqlParameters,
+    initialVisualizationSettings,
     targetDashboardId,
   });
 

@@ -21,7 +21,12 @@ import type {
   QueryClickActionsMode,
 } from "metabase/visualizations/types";
 import type Question from "metabase-lib/v1/Question";
-import type { Card, CardDisplayType, DashboardId } from "metabase-types/api";
+import type {
+  Card,
+  CardDisplayType,
+  DashboardId,
+  VisualizationSettings,
+} from "metabase-types/api";
 import type { EntityToken } from "metabase-types/api/entity";
 
 type SdkQuestionConfig = {
@@ -52,6 +57,14 @@ type SdkQuestionConfig = {
    * - omitted (or set to `undefined`): falls back to the parameter's default (or `null` if it has no default).
    **/
   initialSqlParameters?: SqlParameterValues;
+
+  /**
+   * Visualization settings applied once when the question loads, seeded on top of
+   * the question's saved `visualization_settings`. Uncontrolled: after load the
+   * user owns the settings (e.g. via the settings panel). Render-only — not persisted
+   * unless the user explicitly saves the question.
+   */
+  initialVisualizationSettings?: VisualizationSettings;
 
   /**
    * Controlled SQL parameter values, slug-keyed. On every render, this object replaces the question's parameter values:
