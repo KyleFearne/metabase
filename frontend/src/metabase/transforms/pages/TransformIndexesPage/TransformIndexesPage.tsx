@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { t } from "ttag";
 
 import {
@@ -8,11 +9,13 @@ import {
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
 import { PageContainer } from "metabase/data-studio/common/components/PageContainer";
 import { useTransformPermissions } from "metabase/transforms/hooks/use-transform-permissions";
-import { Card, Center, Stack, Text } from "metabase/ui";
+import { Button, Card, Center, Group, Stack, Text } from "metabase/ui";
 import * as Urls from "metabase/urls";
-import type { TableIndex } from "metabase-types/api";
+import type { TableId, TableIndex, TransformId } from "metabase-types/api";
 
 import { TransformHeader } from "../../components/TransformHeader";
+
+import { CreateIndexModal } from "./CreateIndexModal";
 
 export type TransformIndexesPageParams = {
   transformId: string;
@@ -45,12 +48,27 @@ export function TransformIndexesPage({ params }: TransformIndexesPageProps) {
   return (
     <PageContainer data-testid="transforms-indexes-content">
       <TransformHeader transform={transform} readOnly={readOnly} />
-      <TransformIndexesContent transformId={transform.id} />
+      <TransformIndexesContent
+        transformId={transform.id}
+        tableId={transform.table?.id ?? null}
+        readOnly={readOnly}
+      />
     </PageContainer>
   );
 }
 
-function TransformIndexesContent({ transformId }: { transformId: number }) {
+type TransformIndexesContentProps = {
+  transformId: TransformId;
+  tableId: TableId | null;
+  readOnly?: boolean;
+};
+
+function TransformIndexesContent({
+  transformId,
+  tableId,
+  readOnly,
+}: TransformIndexesContentProps) {
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const {
     data: indexes = [],
     isLoading,
@@ -65,24 +83,38 @@ function TransformIndexesContent({ transformId }: { transformId: number }) {
     );
   }
 
-  if (indexes.length === 0) {
-    return (
-      <Card flex={1} withBorder>
-        <Center h="100%">
-          <Text c="text-secondary">{t`No indexes defined for this transform.`}</Text>
-        </Center>
-      </Card>
-    );
-  }
-
   return (
-    <Card flex={1} withBorder>
-      <Stack gap="md">
-        {indexes.map((index) => (
-          <TransformIndexRow key={index.id} index={index} />
-        ))}
-      </Stack>
-    </Card>
+    <Stack flex={1} gap="md">
+      <Group justify="flex-end">
+        <Button
+          variant="filled"
+          disabled={readOnly}
+          onClick={() => setIsCreateOpen(true)}
+        >
+          {t`Create index`}
+        </Button>
+      </Group>
+      <Card flex={1} withBorder>
+        {indexes.length === 0 ? (
+          <Center h="100%">
+            <Text c="text-secondary">{t`No indexes defined for this transform.`}</Text>
+          </Center>
+        ) : (
+          <Stack gap="md">
+            {indexes.map((index) => (
+              <TransformIndexRow key={index.id} index={index} />
+            ))}
+          </Stack>
+        )}
+      </Card>
+      {isCreateOpen && (
+        <CreateIndexModal
+          transformId={transformId}
+          tableId={tableId}
+          onClose={() => setIsCreateOpen(false)}
+        />
+      )}
+    </Stack>
   );
 }
 
