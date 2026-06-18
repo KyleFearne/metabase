@@ -13,6 +13,8 @@ export type SchemaColumn = {
   description?: string;
   displayName?: string;
   jsType?: SchemaJavaScriptType;
+  baseType?: string;
+  effectiveType?: string;
 };
 
 export type SchemaParameter = {
