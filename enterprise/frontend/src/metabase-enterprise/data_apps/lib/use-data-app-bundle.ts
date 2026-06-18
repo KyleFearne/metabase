@@ -37,13 +37,18 @@ export function useDataAppBundle(name: string): {
     setFailed(false);
 
     const load = async () => {
-      const code = await fetchDataAppBundleCode(name);
+      const { code, allowedHosts } = await fetchDataAppBundleCode(name);
 
       if (cancelled) {
         return;
       }
 
-      const { component, theme } = instantiateDataAppBundle(code, name, window);
+      const { component, theme } = instantiateDataAppBundle(
+        code,
+        name,
+        window,
+        allowedHosts,
+      );
 
       setData({ component, theme });
     };
