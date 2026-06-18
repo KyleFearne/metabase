@@ -71,10 +71,16 @@ describe("UpsellStorage", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Add" }));
 
     expect(
-      await screen.findByText("1M stored rows included for free"),
+      await screen.findByText(
+        "Get a fully managed data warehouse. Upload CSV files and sync with Google Sheets.",
+      ),
     ).toBeInTheDocument();
-    // $0.000002 per row * 1M rows = $2
-    expect(screen.getByText(/\$2 per 1M of stored rows/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /You will not be charged until you reach 1M stored rows/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Add storage" }));
 

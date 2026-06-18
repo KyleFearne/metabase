@@ -14,7 +14,13 @@ import {
 } from "./StoragePurchaseModal";
 import { UpsellBanner } from "./components";
 
-export const UpsellStorage = ({ location }: { location: string }) => {
+export const UpsellStorage = ({
+  location,
+  waitForUploadsEnabled = false,
+}: {
+  location: string;
+  waitForUploadsEnabled?: boolean;
+}) => {
   const campaign = "storage";
   /**
    * @link https://linear.app/metabase/issue/CLO-4190/create-url-for-buy-storage-page-without-purchase-id
@@ -72,7 +78,7 @@ export const UpsellStorage = ({ location }: { location: string }) => {
         <StoragePurchaseModal
           opened={purchaseModalOpened}
           onClose={purchaseModalHandlers.close}
-          storageAddOn={storageAddOn}
+          waitForUploadsEnabled={waitForUploadsEnabled}
         />
       )}
     </>
