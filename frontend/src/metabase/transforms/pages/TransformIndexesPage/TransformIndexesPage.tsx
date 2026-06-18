@@ -9,13 +9,14 @@ import {
 import { LoadingAndErrorWrapper } from "metabase/common/components/LoadingAndErrorWrapper";
 import { PageContainer } from "metabase/data-studio/common/components/PageContainer";
 import { useTransformPermissions } from "metabase/transforms/hooks/use-transform-permissions";
-import { Button, Card, Center, Group, Stack, Text } from "metabase/ui";
+import { Button, Center, Group, Stack } from "metabase/ui";
 import * as Urls from "metabase/urls";
-import type { TableId, TableIndex, TransformId } from "metabase-types/api";
+import type { TableId, TransformId } from "metabase-types/api";
 
 import { TransformHeader } from "../../components/TransformHeader";
 
 import { CreateIndexModal } from "./CreateIndexModal";
+import { IndexTable } from "./IndexTable";
 
 export type TransformIndexesPageParams = {
   transformId: string;
@@ -94,19 +95,7 @@ function TransformIndexesContent({
           {t`Create index`}
         </Button>
       </Group>
-      <Card flex={1} withBorder>
-        {indexes.length === 0 ? (
-          <Center h="100%">
-            <Text c="text-secondary">{t`No indexes defined for this transform.`}</Text>
-          </Center>
-        ) : (
-          <Stack gap="md">
-            {indexes.map((index) => (
-              <TransformIndexRow key={index.id} index={index} />
-            ))}
-          </Stack>
-        )}
-      </Card>
+      <IndexTable indexes={indexes} />
       {isCreateOpen && (
         <CreateIndexModal
           transformId={transformId}
@@ -114,17 +103,6 @@ function TransformIndexesContent({
           onClose={() => setIsCreateOpen(false)}
         />
       )}
-    </Stack>
-  );
-}
-
-function TransformIndexRow({ index }: { index: TableIndex }) {
-  return (
-    <Stack gap={0}>
-      <Text fw="bold">{index.index_name}</Text>
-      <Text c="text-secondary" size="sm">
-        {index.structured.kind} · {index.status}
-      </Text>
     </Stack>
   );
 }
