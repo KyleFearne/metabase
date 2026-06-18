@@ -5,16 +5,22 @@ import { DateTime } from "metabase/common/components/DateTime";
 import { ListEmptyState } from "metabase/common/components/ListEmptyState";
 import CS from "metabase/css/core/index.css";
 import {
+  Badge,
   Card,
+  Code,
   Ellipsified,
-  Text,
+  Group,
   Tooltip,
   TreeTable,
   type TreeTableColumnDef,
   useTreeTableInstance,
 } from "metabase/ui";
 import { EMPTY_CELL_PLACEHOLDER } from "metabase/utils/constants";
-import type { StructuredIndex, TableIndex } from "metabase-types/api";
+import type {
+  StructuredIndex,
+  TableIndex,
+  TableIndexStatus,
+} from "metabase-types/api";
 
 function getIndexColumnNames(structured: StructuredIndex): string[] {
   if (structured.kind === "distkey") {
@@ -25,17 +31,33 @@ function getIndexColumnNames(structured: StructuredIndex): string[] {
   );
 }
 
+const STATUS_COLORS = {
+  pending: "text-secondary",
+  running: "brand",
+  succeeded: "success",
+  failed: "error",
+  dropped: "warning",
+} as const satisfies Record<TableIndexStatus, string>;
+
 function IndexStatusCell({ index }: { index: TableIndex }) {
+  const badge = (
+    <Badge color={STATUS_COLORS[index.status]}>{index.status}</Badge>
+  );
+
   if (index.status === "failed" && index.error_message) {
-    return (
-      <Tooltip label={index.error_message}>
-        <Text c="error" component="span">
-          {index.status}
-        </Text>
-      </Tooltip>
-    );
+    return <Tooltip label={index.error_message}>{badge}</Tooltip>;
   }
-  return index.status;
+  return badge;
+}
+
+function IndexColumnsCell({ structured }: { structured: StructuredIndex }) {
+  return (
+    <Group gap="xs" wrap="nowrap">
+      {getIndexColumnNames(structured).map((name) => (
+        <Code key={name}>{name}</Code>
+      ))}
+    </Group>
+  );
 }
 
 function getColumns(): TreeTableColumnDef<TableIndex>[] {
@@ -53,7 +75,7 @@ function getColumns(): TreeTableColumnDef<TableIndex>[] {
       header: t`Kind`,
       width: "auto",
       accessorFn: (index) => index.structured.kind,
-      cell: ({ row }) => row.original.structured.kind,
+      cell: ({ row }) => <Badge>{row.original.structured.kind}</Badge>,
     },
     {
       id: "columns",
@@ -62,9 +84,7 @@ function getColumns(): TreeTableColumnDef<TableIndex>[] {
       maxAutoWidth: 480,
       accessorFn: (index) => getIndexColumnNames(index.structured).join(", "),
       cell: ({ row }) => (
-        <Ellipsified>
-          {getIndexColumnNames(row.original.structured).join(", ")}
-        </Ellipsified>
+        <IndexColumnsCell structured={row.original.structured} />
       ),
     },
     {
