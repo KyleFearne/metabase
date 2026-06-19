@@ -390,19 +390,32 @@ describe("scenarios > table-editing", () => {
         const minute = Math.floor(Math.random() * 60);
 
         H.popover().within(() => {
-          cy.findByRole("button", { name: `${day} February 2020` }).click();
+          cy.findByRole("button", { name: `${day} February 2020` })
+            .click()
+            // wait for the day to register before editing the time fields
+            .should("have.attr", "data-selected", "true");
           cy.findAllByRole("spinbutton").eq(0).type(hour.toString());
           cy.findAllByRole("spinbutton").eq(1).type(minute.toString());
           cy.get('select[data-am-pm="true"]').as("ampmSelect");
           cy.get("@ampmSelect").select("AM");
+          // Mantine's time picker can revert a scripted keystroke under load, so
+          // verify the save against what it committed, not the raw typed value.
+          cy.findAllByRole("spinbutton").eq(0).invoke("val").as("committedHour");
+          cy.findAllByRole("spinbutton")
+            .eq(1)
+            .invoke("val")
+            .as("committedMinute");
           // It's safe to click the last button because we're in the popover
           // eslint-disable-next-line metabase/no-unsafe-element-filtering
           cy.findAllByRole("button").last().click();
         });
 
-        cy.wait("@updateTableData").then(({ response, request }) => {
+        cy.wait("@updateTableData").then(function ({ response, request }) {
+          // 12h AM hour: "12" -> 0, otherwise as typed
+          const committedHour = Number(this.committedHour) % 12;
+          const committedMinute = Number(this.committedMinute);
           const targetDate = dayjs(
-            new Date(2020, 1, day, hour, minute, 0),
+            new Date(2020, 1, day, committedHour, committedMinute, 0),
           ).format("YYYY-MM-DDTHH:mm:ss");
 
           const requestDate = request.body.params.datetime;
