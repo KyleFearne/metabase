@@ -72,7 +72,6 @@ describe("embedding-sdk-bundle/analytics/snowplow (CSP transport)", () => {
           postPath: "/api/analytics-proxy",
           stateStorageStrategy: "none",
           anonymousTracking: { withServerAnonymisation: true },
-          withCredentials: false,
         }),
       );
     });
