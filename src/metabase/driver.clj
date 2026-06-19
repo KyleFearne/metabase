@@ -1597,6 +1597,48 @@
   [_driver _database _schema _table _transform-type]
   nil)
 
+(mr/def ::table-index
+  "One physical index from [[fetch-table-indexes]], normalized into a cross-driver shape."
+  [:map
+   {:closed true}
+   ;; the physical index name, or nil for an unnamed inline key
+   [:name              [:maybe :string]]
+   ;; cross-driver category: :btree / :skip-index / :order-by / :sortkey
+   [:kind              :keyword]
+   ;; warehouse-native type/method: btree/gin/... (PG), minmax/set/... (CH skip-index), compound/interleaved
+   ;; (Redshift sortkey); nil for a ClickHouse ORDER BY
+   [:access-method     [:maybe :string]]
+   [:is-unique         :boolean]
+   [:is-primary        :boolean]
+   [:is-valid          :boolean]
+   ;; key columns in index order; an expression column carries its expression text (e.g. "lower(email)")
+   [:key-columns       [:sequential :string]]
+   ;; non-key INCLUDE / covering columns
+   [:include-columns   [:sequential [:maybe :string]]]
+   ;; the WHERE clause of a partial index, else nil
+   [:partial-predicate [:maybe :string]]
+   ;; the catalog's own DDL/clause, the most faithful representation
+   [:definition        [:maybe :string]]])
+
+(mr/def ::fetch-table-indexes.result
+  [:sequential [:ref ::table-index]])
+
+(defmulti fetch-table-indexes
+  "Fetch the physical indexes on `table` in `schema` of `database`, one normalized map per catalog index, matching
+  `::fetch-table-indexes.result`. Inline sort keys (ClickHouse `ORDER BY`, Redshift `SORTKEY`) have `:name nil`.
+
+  The index-manager read side. Distinct from the sync-side [[describe-table-indexes]]/[[describe-indexes]], which
+  capture only single-column indexes to flag fields as indexed; this returns full physical detail (uniqueness, partial
+  predicate, INCLUDE columns, key order, raw DDL)."
+  {:added "0.63.0", :arglists '([driver database schema table])}
+  dispatch-on-initialized-driver
+  :hierarchy #'hierarchy)
+
+(defmethod fetch-table-indexes :default
+  [driver _database _schema _table]
+  (throw (ex-info (format "fetch-table-indexes is not implemented for driver %s" driver)
+                  {:driver driver})))
+
 (defmulti drop-table!
   "Drop a table named `table-name`. If the table doesn't exist it will not be dropped. `table-name` may be qualified
   by schema e.g.

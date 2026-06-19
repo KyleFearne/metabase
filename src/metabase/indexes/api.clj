@@ -6,6 +6,7 @@
   (:require
    [metabase.api.common :as api]
    [metabase.api.macros :as api.macros]
+   [metabase.indexes.reconcile :as reconcile]
    [metabase.indexes.schema :as schema]
    [metabase.util.i18n :refer [tru]]
    [metabase.util.malli.schema :as ms]
@@ -27,11 +28,34 @@
    [:updated_at :any]
    [:last_executed_at [:maybe :any]]])
 
-(defn- index-name
-  "Physical index name for a structured index: a named kind's own `:name`, else a stable name from its `:kind` (so a
-  transform holds at most one sortkey/order-by/etc, enforced by the unique constraint)."
-  [structured]
-  (or (:name structured) (name (:kind structured))))
+(def ^:private MergedRequest
+  "Managed-row bookkeeping on a merged entry: lifecycle plus the editable structured definition."
+  [:map
+   [:id ms/PositiveInt]
+   [:status [:enum :pending :running :succeeded :failed :dropped]]
+   [:structured ::schema/index-structured]
+   [:error_message [:maybe :string]]
+   [:created_by [:maybe ms/PositiveInt]]
+   [:created_at :any]
+   [:updated_at :any]
+   [:last_executed_at [:maybe :any]]])
+
+(def ^:private MergedIndex
+  "A merged-list entry: an index as observed in the warehouse, with a `:request` on Metabase-managed rows. Shape is
+  built by [[metabase.indexes.reconcile/merge-indexes]]."
+  [:map
+   [:metabase_managed     :boolean]
+   [:present_in_warehouse :boolean]
+   [:name                 [:maybe :string]]
+   [:kind                 :keyword]
+   [:key_columns          [:sequential :string]]
+   [:include_columns      [:sequential [:maybe :string]]]
+   [:is_unique            :boolean]
+   [:is_primary           :boolean]
+   [:is_valid             :boolean]
+   [:partial_predicate    [:maybe :string]]
+   [:access_method        [:maybe :string]]
+   [:request {:optional true} MergedRequest]])
 
 (defn- read-check-owner!
   "Read-check the transform a managed index belongs to -- the permission viewing that transform uses."
@@ -43,12 +67,16 @@
   [{:keys [transform_id]}]
   (api/write-check :model/Transform transform_id))
 
-(api.macros/defendpoint :get "/" :- [:map [:data [:sequential TableIndex]]]
-  "List the managed indexes for a transform."
+(api.macros/defendpoint :get "/" :- [:map [:data [:sequential MergedIndex]]]
+  "List a transform's index hints: the indexes physically in the warehouse merged with its managed hints. Each entry
+  is flagged `:metabase_managed`; managed ones also carry `:request` (status + definition)."
   [_route-params
    {:keys [transform-id]} :- [:map [:transform-id ms/PositiveInt]]]
   (api/read-check :model/Transform transform-id)
-  {:data (t2/select :model/TableIndex :transform_id transform-id {:order-by [[:id :asc]]})})
+  (let [{:keys [database schema] table-name :name} (:target (t2/select-one :model/Transform transform-id))
+        managed   (t2/select :model/TableIndex :transform_id transform-id {:order-by [[:id :asc]]})
+        warehouse (reconcile/fetch-warehouse-indexes (t2/select-one :model/Database database) schema table-name)]
+    {:data (reconcile/merge-indexes managed warehouse)}))
 
 (api.macros/defendpoint :get "/:id" :- TableIndex
   "Fetch a single managed index (e.g. to poll its status)."
@@ -64,7 +92,7 @@
                                          [:transform_id ms/PositiveInt]
                                          [:structured :map]]]
   (api/write-check :model/Transform transform_id)
-  (let [idx-name (index-name structured)]
+  (let [idx-name (reconcile/index-name structured)]
     ;; (transform_id, index_name) is unique; reject a duplicate cleanly instead of hitting the constraint.
     (api/check-400 (not (t2/exists? :model/TableIndex :transform_id transform_id :index_name idx-name))
                    (tru "An index named \"{0}\" already exists for this transform." idx-name))
@@ -83,7 +111,7 @@
   ;; toucan2 has no instance-returning update, so re-select; in a tx so we return exactly what we wrote.
   (t2/with-transaction [_conn]
     (t2/update! :model/TableIndex id {:structured    structured
-                                      :index_name    (index-name structured)
+                                      :index_name    (reconcile/index-name structured)
                                       :status        :pending
                                       :error_message nil})
     (t2/select-one :model/TableIndex :id id)))

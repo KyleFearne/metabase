@@ -248,6 +248,36 @@
           cols      (str/join ", " (map #(sql.u/quote-name driver :field (:name %)) columns))]
       (format "%s SORTKEY (%s)" style-sql cols))))
 
+;; Redshift has no secondary indexes; the only physical "index" is the inline, unnamed sortkey, so we override the
+;; inherited Postgres `pg_index` query. `svv_redshift_columns.sortkey` is the 1-based position (negative marks the
+;; whole key INTERLEAVED). Blank `schema` falls back to `current_schema()`.
+(defmethod driver/fetch-table-indexes :redshift
+  [_driver database schema table]
+  (let [rows (jdbc/query
+              (sql-jdbc.conn/db->pooled-connection-spec database)
+              [(str "SELECT column_name, sortkey FROM svv_redshift_columns "
+                    "WHERE schema_name = COALESCE(?, current_schema()) AND table_name = ? AND sortkey <> 0 "
+                    "ORDER BY abs(sortkey)")
+               (perf/not-empty schema) table])]
+    (if (seq rows)
+      ;; `:access-method` carries the sortkey style (compound/interleaved) -- a sortkey's native "method", and the
+      ;; only place the style survives normalization (negative `sortkey` positions mark the whole key interleaved).
+      (let [style   (if (perf/some (comp neg? :sortkey) rows) "interleaved" "compound")
+            columns (perf/mapv :column_name rows)]
+        [{:name              nil
+          :kind              :sortkey
+          :access-method     style
+          :is-unique         false
+          :is-primary        false
+          :is-valid          true
+          :key-columns       columns
+          :include-columns   []
+          :partial-predicate nil
+          :definition        (format "%s SORTKEY (%s)"
+                                     (str/upper-case style)
+                                     (str/join ", " columns))}])
+      [])))
+
 (defmethod driver/compile-transform :redshift
   [driver {:keys [query output-table indexes] :as transform-details}]
   (if-let [clause (sortkey-clause driver indexes)]
