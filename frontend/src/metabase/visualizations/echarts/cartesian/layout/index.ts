@@ -77,6 +77,13 @@ const getEvenlySpacedIndices = (
   return Array.from(result);
 };
 
+/**
+ * Canvas text measurement can be slightly narrower than ECharts' rendered SVG
+ * text, so reserve a small amount of extra room to avoid clipping currency
+ * prefixes.
+ */
+const Y_AXIS_TICK_WIDTH_BUFFER = CHART_STYLE.padding.x;
+
 const getValuesToMeasure = (min: number, max: number): number[] => {
   if (min === max) {
     return [min];
@@ -180,9 +187,12 @@ const getYAxisTicksWidth = (
     (value) => value > -5 && value < 5,
   );
 
+  const columnSettings = settings.column?.(axisModel.column);
+  const yAxisTickWidthBuffer =
+    columnSettings?.number_style === "currency" ? Y_AXIS_TICK_WIDTH_BUFFER : 0;
+
   const measuredValues = valuesToMeasure.map((rawValue) => {
-    const isPercent =
-      settings.column?.(axisModel.column).number_style === "percent";
+    const isPercent = columnSettings?.number_style === "percent";
 
     let value = rawValue;
 
@@ -194,7 +204,7 @@ const getYAxisTicksWidth = (
     return measureText(formattedValue, fontStyle);
   });
 
-  return Math.max(...measuredValues);
+  return Math.max(...measuredValues) + yAxisTickWidthBuffer;
 };
 
 const getXAxisTicksWidth = (
