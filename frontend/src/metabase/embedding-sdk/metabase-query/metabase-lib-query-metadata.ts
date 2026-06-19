@@ -1,25 +1,34 @@
-import type { Field } from "metabase-types/api";
+import type { Field, TableId } from "metabase-types/api";
 
-import { getMetricId, getMetricSourceTableId } from "./accessors";
+import {
+  getMetricIdFromQuery,
+  getMetricSourceCardIdFromQuery,
+  getMetricSourceIdFromQuery,
+  getMetricSourceTableIdFromQuery,
+} from "./accessors";
 import { isMeasureSchema } from "./guards";
 import type { MetadataInput, Query } from "./metabase-lib-query-lib";
 import { Lib } from "./metabase-lib-query-lib";
-import type { FieldWithFieldId } from "./metabase-lib-query-utils";
 import {
   getFieldBaseType,
   getFieldEffectiveType,
   getFieldId,
-  getObject,
+  getMetricDimensionValues,
   hasFieldId,
   isMetricDimensionWithFieldId,
 } from "./metabase-lib-query-utils";
-import type { MetricQueryRuntime } from "./runtime-types";
-import type { TableSchema } from "./schema";
+import type {
+  MeasureReferenceRuntime,
+  MetricQueryRuntime,
+} from "./runtime-types";
+import type { FieldSchema, SegmentSchema, TableSchema } from "./schema";
+
+type TableMetadataSource = Omit<TableSchema, "id"> & { id: TableId };
 
 export function createLibQuery(
   metadata: MetadataInput,
   databaseId: number,
-  tableId: number,
+  tableId: TableId,
 ): Query {
   const provider = Lib.metadataProvider(databaseId, metadata);
   const table = Lib.tableOrCardMetadata(provider, tableId);
@@ -32,7 +41,7 @@ export function createLibQuery(
 }
 
 export function createTableMetadata(
-  table: TableSchema,
+  table: TableMetadataSource,
   databaseId: number,
 ): MetadataInput {
   const fields = getTableFields(table);
@@ -53,25 +62,13 @@ export function createTableMetadata(
     segments: Object.fromEntries(
       Object.values(table.segments ?? {}).map((segment) => [
         segment.id,
-        {
-          ...segment,
-          name: `Segment ${segment.id}`,
-          description: null,
-          archived: false,
-          table_id: table.id,
-        },
+        createSegmentMetadataRecord(segment, table.id),
       ]),
     ),
     measures: Object.fromEntries(
       Object.values(table.measures ?? {}).map((measure) => [
         measure.id,
-        {
-          ...measure,
-          name: `Measure ${measure.id}`,
-          description: null,
-          archived: false,
-          table_id: table.id,
-        },
+        createMeasureMetadataRecord(measure, table.id),
       ]),
     ),
   };
@@ -81,55 +78,68 @@ export function createMetricMetadata(
   query: MetricQueryRuntime,
   databaseId: number,
 ): MetadataInput {
-  const sourceTableId = Number(getMetricSourceTableId(query));
-  const fields = getMetricDimensions(query);
-  const table: TableSchema = {
-    id: sourceTableId,
+  const metricId = Number(getMetricIdFromQuery(query));
+  const sourceId = getMetricSourceIdFromQuery(query);
+
+  const sourceTableId = getMetricSourceTableIdFromQuery(query);
+  const sourceCardId = getMetricSourceCardIdFromQuery(query);
+
+  const fields = getMetricDimensionValues(
+    query.metric,
+    isMetricDimensionWithFieldId,
+  );
+
+  if (sourceId == null) {
+    throw new Error(
+      "Metric metadata creation requires a sourceTableId or sourceCardId.",
+    );
+  }
+
+  const table = {
+    id: sourceId,
     databaseId,
     fields: Object.fromEntries(
       fields.map((field) => [String(getFieldId(field)), field]),
     ),
   };
 
+  const measures = Object.fromEntries(
+    query.measures
+      ?.filter(isMeasureSchema)
+      .map((measure) => [
+        measure.id,
+        createMeasureMetadataRecord(measure, measure.tableId),
+      ]) ?? [],
+  );
+
+  const questionMetadata =
+    sourceCardId == null
+      ? {}
+      : {
+          [sourceCardId]: createQuestionMetadataRecord(
+            Number(sourceCardId),
+            databaseId,
+          ),
+        };
+
   return {
     ...createTableMetadata(table, databaseId),
-    metrics: {
-      [Number(getMetricId(query))]: {
-        id: Number(getMetricId(query)),
-        name: `Metric ${String(getMetricId(query))}`,
-        description: null,
-        collection_id: null,
-        collection: null,
-        dimensions: getMetricDimensions(query).map((dimension) => ({
-          id: String(dimension.id ?? dimension.fieldId),
-          display_name: dimension.displayName ?? dimension.name,
-          effective_type: getFieldEffectiveType(dimension),
-          semantic_type: null,
-          sources:
-            typeof dimension.fieldId === "number"
-              ? [{ type: "field", "field-id": dimension.fieldId }]
-              : undefined,
-        })),
-      },
+    questions: {
+      [metricId]: createMetricCardMetadataRecord({
+        metricId,
+        databaseId,
+        sourceTableId: sourceTableId == null ? null : Number(sourceTableId),
+        sourceCardId: sourceCardId == null ? null : Number(sourceCardId),
+      }),
+      ...questionMetadata,
     },
-    measures: Object.fromEntries(
-      query.measures?.filter(isMeasureSchema).map((measure) => [
-        measure.id,
-        {
-          ...measure,
-          name: `Measure ${measure.id}`,
-          description: null,
-          archived: false,
-          table_id: measure.tableId,
-        },
-      ]) ?? [],
-    ),
+    measures,
   };
 }
 
-const createDatabaseMetadata = (databaseId: number) => ({
-  id: databaseId,
-  name: `Database ${databaseId}`,
+// These defaults are synthetic metadata-provider scaffolding. Keep generated
+// schema values in the record constructors above and below this block.
+const DATABASE_METADATA_DEFAULTS = {
   engine: undefined,
   details: {},
   schedules: {},
@@ -149,89 +159,155 @@ const createDatabaseMetadata = (databaseId: number) => ({
   uploads_table_prefix: null,
   created_at: "2021-01-01T00:00:00",
   updated_at: "2021-01-01T00:00:00",
+};
+
+const TABLE_METADATA_DEFAULTS = {
+  schema: "public",
+  description: null,
+  active: true,
+  visibility_type: null,
+  field_order: "database",
+  initial_sync_status: "complete",
+};
+
+const FIELD_METADATA_DEFAULTS = {
+  description: null,
+  database_type: "",
+  semantic_type: null,
+  active: true,
+  visibility_type: "normal" as const,
+  preview_display: true,
+  fk_target_field_id: null,
+  nfc_path: null,
+  json_unfolding: null,
+  coercion_strategy: null,
+  fingerprint: null,
+  has_field_values: "none" as const,
+  has_more_values: false,
+  last_analyzed: "2021-01-01T00:00:00",
+  created_at: "2021-01-01T00:00:00",
+  updated_at: "2021-01-01T00:00:00",
+};
+
+const SEGMENT_METADATA_DEFAULTS = {
+  description: null,
+  archived: false,
+};
+
+const MEASURE_METADATA_DEFAULTS = {
+  description: null,
+  archived: false,
+};
+
+const CARD_METADATA_DEFAULTS = {
+  description: null,
+  visualization_settings: {},
+  result_metadata: [],
+};
+
+const createDatabaseMetadata = (databaseId: number) => ({
+  ...DATABASE_METADATA_DEFAULTS,
+  id: databaseId,
+  name: `Database ${databaseId}`,
 });
 
-function createTableMetadataRecord(
-  table: TableSchema,
+const createTableMetadataRecord = (
+  table: TableMetadataSource,
   databaseId: number,
-  fields: FieldWithFieldId[],
-) {
-  return {
-    id: table.id,
-    db_id: databaseId,
-    display_name: `Table ${table.id}`,
-    name: `table_${table.id}`,
-    schema: "public",
-    description: null,
-    active: true,
-    visibility_type: null,
-    field_order: "database",
-    initial_sync_status: "complete",
-    fields: fields.map((field, index) =>
-      createFieldMetadataRecord(field, table.id, index),
-    ),
-    segments: Object.values(table.segments ?? {}),
-    measures: Object.values(table.measures ?? {}),
-  };
-}
+  fields: FieldSchema[],
+) => ({
+  ...TABLE_METADATA_DEFAULTS,
+  id: table.id,
+  db_id: databaseId,
+  display_name: `Table ${table.id}`,
+  name: `table_${table.id}`,
+  fields: fields.map((field, index) =>
+    createFieldMetadataRecord(field, table.id, index),
+  ),
+  segments: Object.values(table.segments ?? {}),
+  measures: Object.values(table.measures ?? {}),
+});
 
-function createFieldMetadataRecord(
-  field: FieldWithFieldId,
-  tableId: number,
+const createFieldMetadataRecord = (
+  field: FieldSchema,
+  tableId: TableId,
   index: number,
-): Field {
-  const fieldId = getFieldId(field);
+): Field => ({
+  ...FIELD_METADATA_DEFAULTS,
 
-  return {
-    id: fieldId ?? index,
-    table_id: tableId,
-    name: field.name,
-    display_name: field.displayName ?? field.name,
-    description: field.description ?? null,
-    database_type: "",
-    base_type: getFieldBaseType(field),
-    effective_type: getFieldEffectiveType(field),
-    semantic_type: null,
-    active: true,
-    visibility_type: "normal",
-    preview_display: true,
-    position: index,
-    fk_target_field_id: null,
-    nfc_path: null,
-    json_unfolding: null,
-    coercion_strategy: null,
-    fingerprint: null,
-    has_field_values: "none",
-    has_more_values: false,
-    last_analyzed: "2021-01-01T00:00:00",
-    created_at: "2021-01-01T00:00:00",
-    updated_at: "2021-01-01T00:00:00",
-  };
-}
+  id: getFieldId(field) ?? index,
+  table_id: tableId,
+  name: field.name,
+  display_name: field.displayName ?? field.name,
+  description: field.description ?? FIELD_METADATA_DEFAULTS.description,
+  base_type: getFieldBaseType(field),
+  effective_type: getFieldEffectiveType(field),
+  position: index,
+});
 
-const getTableFields = (table: TableSchema): FieldWithFieldId[] =>
+const createSegmentMetadataRecord = (
+  segment: SegmentSchema,
+  tableId: TableId,
+) => ({
+  ...SEGMENT_METADATA_DEFAULTS,
+  ...segment,
+  name: `Segment ${segment.id}`,
+  table_id: tableId,
+});
+
+const createMeasureMetadataRecord = (
+  measure: MeasureReferenceRuntime,
+  tableId: TableId,
+) => ({
+  ...MEASURE_METADATA_DEFAULTS,
+  ...measure,
+  name: `Measure ${measure.id}`,
+  table_id: tableId,
+});
+
+const createQuestionMetadataRecord = (cardId: number, databaseId: number) => ({
+  ...CARD_METADATA_DEFAULTS,
+  id: cardId,
+  name: `Question ${cardId}`,
+  display: "table",
+  type: "question",
+  dataset_query: {
+    type: "query",
+    database: databaseId,
+    query: {
+      "source-table": `card__${cardId}`,
+    },
+  },
+});
+
+const createMetricCardMetadataRecord = ({
+  metricId,
+  databaseId,
+  sourceTableId,
+  sourceCardId,
+}: {
+  metricId: number;
+  databaseId: number;
+  sourceTableId: number | null;
+  sourceCardId: number | null;
+}) => ({
+  ...CARD_METADATA_DEFAULTS,
+  id: metricId,
+  name: `Metric ${metricId}`,
+  display: "scalar",
+  type: "metric",
+  table_id: sourceTableId,
+  source_card_id: sourceCardId,
+  archived: false,
+  dataset_query: {
+    type: "query",
+    database: databaseId,
+    query: {
+      "source-table":
+        sourceTableId == null ? `card__${sourceCardId}` : sourceTableId,
+    },
+  },
+});
+
+const getTableFields = (table: TableMetadataSource): FieldSchema[] =>
   Object.values(table.fields ?? {}).filter(hasFieldId);
-
-function getMetricDimensions(query: MetricQueryRuntime): FieldWithFieldId[] {
-  if (typeof query.metric !== "object" || query.metric == null) {
-    return [];
-  }
-
-  const dimensions = getObject(query.metric, "dimensions");
-
-  if (!dimensions) {
-    return [];
-  }
-
-  return Object.values(dimensions).flatMap((dimensionOrGroup) => {
-    if (isMetricDimensionWithFieldId(dimensionOrGroup)) {
-      return [dimensionOrGroup];
-    }
-
-    if (typeof dimensionOrGroup !== "object" || dimensionOrGroup == null) {
-      return [];
-    }
-
-    return Object.values(dimensionOrGroup).filter(isMetricDimensionWithFieldId);
-  });
-}

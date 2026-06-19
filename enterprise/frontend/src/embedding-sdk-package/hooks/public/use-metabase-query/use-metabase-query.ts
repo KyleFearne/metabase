@@ -19,12 +19,6 @@ import type {
 } from "../data-schema";
 import { mapQueryData } from "../data-schema";
 
-import {
-  isMetricQuery,
-  isQuestionQuery,
-  isTableQuery,
-  isUnaryOperator,
-} from "./guards";
 import { mapDatasetQueryData } from "./map-dataset-query-data";
 import { stableStringifyQuery } from "./stable-query-key";
 import type {
@@ -40,6 +34,7 @@ import type {
   MetricReference,
   NumericAggregationDimension,
   OrderableAggregationDimension,
+  QuestionQuery,
   TableQuery,
   UnaryFilterOperatorForDimension,
   UseMetabaseQuery,
@@ -154,6 +149,35 @@ const isOrderableJavaScriptType = (
   value === "number" ||
   value === "boolean" ||
   value === "Date";
+
+const isQuestionQuery = (
+  query: MetabaseQueryOptions,
+): query is QuestionQuery<unknown> => query.questionId != null;
+
+const isTableQuery = (
+  query: MetabaseQueryOptions,
+): query is TableQuery<unknown> =>
+  ("table" in query && query.table != null) ||
+  ("tableId" in query && query.tableId != null);
+
+const isMetricQuery = (
+  query: MetabaseQueryOptions,
+): query is MetricQuery<unknown> =>
+  ("metric" in query && isMetricReference(query.metric)) ||
+  ("metricId" in query && query.metricId != null);
+
+const isMetricReference = (value: unknown): value is MetricReference =>
+  typeof value === "object" &&
+  value != null &&
+  "id" in value &&
+  "mappedTableIds" in value &&
+  Array.isArray(value.mappedTableIds);
+
+const isUnaryOperator = (operator: string) =>
+  operator === "is-empty" ||
+  operator === "not-empty" ||
+  operator === "is-null" ||
+  operator === "not-null";
 
 // useMetabaseQueryObject returns synchronously while the SDK bundle loads.
 const PLACEHOLDER_DATASET_QUERY: StructuredDatasetQuery = {

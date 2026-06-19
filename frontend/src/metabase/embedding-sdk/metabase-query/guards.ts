@@ -1,4 +1,6 @@
-import { getMetricId, getTableId } from "./accessors";
+import { isObject } from "metabase-types/guards";
+
+import { getMetricIdFromQuery, getTableIdFromQuery } from "./accessors";
 import type {
   CountAggregationRuntime,
   DimensionFilterRuntime,
@@ -18,11 +20,11 @@ export const isQuestionQuery = (
 
 export const isTableQuery = (
   query: MetabaseQueryRuntime,
-): query is TableQueryRuntime => getTableId(query) != null;
+): query is TableQueryRuntime => getTableIdFromQuery(query) != null;
 
 export const isMetricQuery = (
   query: MetabaseQueryRuntime,
-): query is MetricQueryRuntime => getMetricId(query) != null;
+): query is MetricQueryRuntime => getMetricIdFromQuery(query) != null;
 
 export const isUnaryOperator = (operator: string) =>
   operator === "is-empty" ||
@@ -32,8 +34,7 @@ export const isUnaryOperator = (operator: string) =>
 
 export const isDimensionFilter = (
   value: unknown,
-): value is DimensionFilterRuntime =>
-  typeof value === "object" && value != null && "dimension" in value;
+): value is DimensionFilterRuntime => isObject(value) && "dimension" in value;
 
 export const isTableDimensionFilter = (
   value: unknown,
@@ -43,32 +44,22 @@ export const isTableDimensionFilter = (
 export const isSegmentSchema = (
   value: unknown,
 ): value is SegmentReferenceRuntime =>
-  typeof value === "object" &&
-  value != null &&
-  "kind" in value &&
-  value.kind === "segment";
+  isObject(value) && "kind" in value && value.kind === "segment";
 
 export const isMeasureSchema = (
   value: unknown,
 ): value is MeasureReferenceRuntime =>
-  typeof value === "object" &&
-  value != null &&
-  "kind" in value &&
-  value.kind === "measure";
+  isObject(value) && "kind" in value && value.kind === "measure";
 
 export const isCountAggregation = (
   value: unknown,
 ): value is CountAggregationRuntime =>
-  typeof value === "object" &&
-  value != null &&
-  "type" in value &&
-  value.type === "count";
+  isObject(value) && "type" in value && value.type === "count";
 
 export const isFieldAggregation = (
   value: unknown,
 ): value is FieldAggregationRuntime =>
-  typeof value === "object" &&
-  value != null &&
+  isObject(value) &&
   "type" in value &&
   "dimension" in value &&
   (value.type === "sum" ||
@@ -78,20 +69,15 @@ export const isFieldAggregation = (
     value.type === "min" ||
     value.type === "max");
 
-export const isFieldSchema = (value: unknown): value is FieldSchema =>
-  isTableFieldSchema(value);
-
 export function isTableFieldSchema(value: unknown): value is FieldSchema {
-  if (typeof value !== "object" || value == null || "metricId" in value) {
+  if (!isObject(value) || "metricId" in value) {
     return false;
   }
 
-  const field = value as Record<string, unknown>;
-
   return (
-    typeof field.name === "string" &&
-    (typeof field.fieldId === "number" ||
-      typeof field.id === "number" ||
-      typeof field.id === "string")
+    typeof value.name === "string" &&
+    (typeof value.fieldId === "number" ||
+      typeof value.id === "number" ||
+      typeof value.id === "string")
   );
 }

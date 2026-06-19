@@ -1,7 +1,5 @@
 import type { FilterOperator as LibFilterOperator } from "metabase-lib/common";
 
-import type { FieldSchema } from "./schema";
-
 export type ID = string | number;
 
 export type FilterOperator = LibFilterOperator | "time-interval";
@@ -79,11 +77,3 @@ export type DimensionFilterRuntime = {
   value?: unknown;
   values?: readonly unknown[];
 };
-
-export type BreakoutObjectRuntime = {
-  dimension: string | FieldSchema;
-  bucket?: unknown;
-  binning?: unknown;
-};
-
-export type BreakoutRuntime = string | FieldSchema | BreakoutObjectRuntime;
