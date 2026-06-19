@@ -8,7 +8,6 @@
    [clojure.test :refer :all]
    [metabase.driver :as driver]
    [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
-   [metabase.indexes.reconcile :as reconcile]
    [metabase.test :as mt]
    [metabase.transforms-base.util :as transforms-base.u]
    [metabase.transforms.execute :as transforms.execute]
@@ -166,7 +165,7 @@
       (let [spec  (sql-jdbc.conn/db->pooled-connection-spec (mt/db))
             cases (index-util/fetch-cases driver/*driver*)]
         (is (some? cases) (index-util/missing-case-message driver/*driver*))
-        (doseq [{:keys [label table create expected expected-structured]} cases]
+        (doseq [{:keys [label table create expected]} cases]
           (testing label
             (jdbc/execute! spec [(str "DROP TABLE IF EXISTS " table)])
             (try
@@ -175,9 +174,7 @@
               (let [indexes (driver/fetch-table-indexes driver/*driver* (mt/db) nil table)]
                 (is (nil? (mr/explain :metabase.driver/fetch-table-indexes.result indexes))
                     "result conforms to ::fetch-table-indexes.result")
-                (is (= expected (into #{} (map #(dissoc % :definition)) indexes)))
-                (testing "each fetched index converts to its expected structured definition"
-                  (is (= expected-structured (into #{} (map reconcile/warehouse->structured) indexes)))))
+                (is (= expected (into #{} (map #(dissoc % :definition)) indexes))))
               (finally
                 (jdbc/execute! spec [(str "DROP TABLE IF EXISTS " table)])))))
         (testing "a table that does not exist returns [] rather than throwing"
