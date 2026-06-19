@@ -6,7 +6,6 @@ import {
 
 import type { State } from "metabase/redux/store";
 import { trackMetaplowEvent } from "metabase/utils/metaplow";
-import Settings from "metabase/utils/settings";
 import type { SimpleEventSchema } from "metabase-types/analytics/event";
 
 // Minimal structural type: only the settings slice the instance-context plugin needs.
@@ -19,29 +18,25 @@ type SettingsGetter = () => Pick<State, "settings">;
 // `connect-src` matches host (not path), so the instance origin — already
 // allowlisted for the SDK's data calls — passes with no extra customer config.
 
-// Named tracker, isolated from the main-app tracker ("sp").
 const SDK_TRACKER_NAME = "sdk";
-
-// Use the same Iglu schema as the rest of Metabase. SDK events land in the
-// same analytics tables without a separate schema registration.
 const SIMPLE_EVENT_SCHEMA = "iglu:com.metabase/simple_event/jsonschema/1-0-0";
 
 export type SdkAuthMethod = "guest" | "api_key" | "sso";
 
-// true = tracker initialized for the first time; false = already running (idempotent call)
 type WasJustInitialized = boolean;
 
 let trackerInitialized = false;
+// Stored at init time so trackSdkSimpleEvent can read settings without a React hook.
+let sdkStoreGetter: SettingsGetter | null = null;
 
 export function __resetTrackerForTesting(): void {
   trackerInitialized = false;
+  sdkStoreGetter = null;
 }
 
-// Initialize the SDK's Snowplow tracker. Idempotent — safe under StrictMode double-mount.
-//
-// getStoreState must be the Redux store's getState() from the actual ComponentProvider
-// store (via useSdkStore). The instance-context plugin calls it at event-send time, so
-// settings are read from the live store, not a snapshot captured at init time.
+// getStoreState must come from the actual ComponentProvider store (via useSdkStore).
+// The instance-context plugin calls it at event-send time so settings are read
+// from the live store, not a snapshot captured at init time.
 export function initSdkTracker({
   metabaseInstanceUrl,
   getStoreState,
@@ -53,6 +48,7 @@ export function initSdkTracker({
     return false;
   }
   trackerInitialized = true;
+  sdkStoreGetter = getStoreState;
 
   newTracker(SDK_TRACKER_NAME, metabaseInstanceUrl, {
     appId: "metabase",
@@ -62,12 +58,9 @@ export function initSdkTracker({
     // Plain JSON on the wire. The main-app tracker uses the default (encodeBase64:true);
     // the SDK tracker is new, so there's no legacy format to preserve.
     encodeBase64: false,
-    // Deliver through the instance proxy, not the collector's tp2 path.
     postPath: "/api/analytics-proxy",
     // No cookies / localStorage: the SDK must not touch the host page's storage.
-    // This also makes cookie-domain config (e.g. discoverRootDomain) irrelevant.
     stateStorageStrategy: "none",
-    // Server-side anonymisation: strip IP + network_userid, send the SP-Anonymous header.
     anonymousTracking: { withServerAnonymisation: true },
     // The proxy endpoint uses a wildcard CORS origin. Credentialed requests are blocked
     // by the browser under wildcard CORS (the spec forbids Allow-Credentials: true with *),
@@ -78,8 +71,6 @@ export function initSdkTracker({
   return true;
 }
 
-// Attaches the instance context to every SDK event. Closes over the live
-// store's getState so settings are read at event-send time, not at init time.
 function createSdkInstanceContextPlugin(getStoreState: SettingsGetter) {
   return {
     contexts(): SelfDescribingJson[] {
@@ -103,25 +94,19 @@ function createSdkInstanceContextPlugin(getStoreState: SettingsGetter) {
   };
 }
 
-// Send a self-describing event through the SDK tracker. Schema-agnostic: the
-// caller supplies the Iglu schema + data, so the transport stays decoupled
-// from the event shape.
 export function trackSdkEvent(event: SelfDescribingJson): void {
   trackSelfDescribingEvent({ event }, [SDK_TRACKER_NAME]);
 }
 
-// Send a simple_event through the SDK Snowplow proxy tracker and (if enabled) Metaplow.
-// Use this instead of trackSimpleEvent in the SDK bundle. The main-app "sp" tracker
-// is not initialized in the SDK context (customer's page), so trackSimpleEvent's
-// Snowplow leg is a no-op there. This function routes Snowplow through the
-// CSP-safe proxy tracker and handles Metaplow delivery separately.
+// Use instead of trackSimpleEvent in the SDK: the main-app "sp" tracker is not
+// initialized in the customer's page, so trackSimpleEvent's Snowplow leg is a no-op.
 export function trackSdkSimpleEvent(event: SimpleEventSchema): void {
   trackSdkEvent({
     schema: SIMPLE_EVENT_SCHEMA,
     data: event,
   });
 
-  if (Settings.get("metaplow-tracking-enabled")) {
+  if (sdkStoreGetter?.().settings?.values?.["metaplow-tracking-enabled"]) {
     const { event: name, ...data } = event;
     trackMetaplowEvent(name, data as Record<string, unknown>);
   }

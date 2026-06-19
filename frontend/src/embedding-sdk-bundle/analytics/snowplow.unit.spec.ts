@@ -19,15 +19,6 @@ jest.mock("metabase/utils/metaplow", () => ({
   trackMetaplowEvent: mockTrackMetaplowEvent,
 }));
 
-// Settings is imported by transitive static imports, so its factory runs before
-// const declarations are initialized (TDZ). Use inline jest.fn() and access
-// the mock via jest.requireMock() instead.
-// __esModule: true is required for Babel's _interopRequireDefault to find .default correctly.
-jest.mock("metabase/utils/settings", () => ({
-  __esModule: true,
-  default: { get: jest.fn() },
-}));
-
 // Re-import per test so the module-scoped trackerInitialized guard resets.
 const loadModule = () => import("./snowplow");
 
@@ -180,12 +171,13 @@ describe("embedding-sdk-bundle/analytics/snowplow (CSP transport)", () => {
     });
 
     it("calls Metaplow when metaplow-tracking-enabled is on", async () => {
-      jest
-        .requireMock("metabase/utils/settings")
-        .default.get.mockImplementation(
-          (key: string) => key === "metaplow-tracking-enabled",
-        );
-      const { trackSdkSimpleEvent } = await loadModule();
+      const { initSdkTracker, trackSdkSimpleEvent } = await loadModule();
+
+      initSdkTracker({
+        metabaseInstanceUrl: "https://metabase.example.com",
+        getStoreState: () =>
+          makeStoreState({ "metaplow-tracking-enabled": true }),
+      });
 
       trackSdkSimpleEvent({
         event: "embedding_sdk_initialized",
