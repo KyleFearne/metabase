@@ -40,8 +40,10 @@ export function __resetBeaconForTesting() {
 // Waits for anon-tracking-enabled to be loaded from instance settings so the
 // opt-out gate is respected. Fires once per JS load; idempotent under re-renders.
 //
-// setSdkTrackingContext is called synchronously during render (not in an effect)
-// so child component effects can read auth_method on the very first commit.
+// Both setSdkTrackingContext and initSdkTracker are called synchronously during
+// render (not in an effect) so they complete before any child component effects.
+// React runs child effects before parent effects — without this, the first
+// component-rendered event would be sent before the tracker was registered.
 export function useInitSdkTracker(
   authConfig: MetabaseAuthConfig,
   localeUsed: boolean,
@@ -52,6 +54,14 @@ export function useInitSdkTracker(
 
   setSdkTrackingContext(authMethod, localeUsed);
 
+  // Initialize synchronously so the tracker is registered before child effects fire.
+  if (isEmbeddingSdk() && !isEmbeddingEajs() && isTrackingEnabled) {
+    initSdkTracker({
+      metabaseInstanceUrl: authConfig.metabaseInstanceUrl,
+      getStoreState: store.getState,
+    });
+  }
+
   useEffect(() => {
     if (!isEmbeddingSdk() || isEmbeddingEajs() || !isTrackingEnabled) {
       return;
@@ -59,12 +69,6 @@ export function useInitSdkTracker(
     if (beaconFired) {
       return;
     }
-
-    // Initialize the Snowplow proxy tracker before the first event. Idempotent.
-    initSdkTracker({
-      metabaseInstanceUrl: authConfig.metabaseInstanceUrl,
-      getStoreState: store.getState,
-    });
     beaconFired = true;
 
     trackSdkSimpleEvent({
