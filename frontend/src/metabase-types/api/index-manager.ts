@@ -1,7 +1,7 @@
 import type { TransformId } from "./transform";
 import type { UserId } from "./user";
 
-export type TableIndexId = number;
+export type RequestIndexId = number;
 
 export type IndexColumnDirection = "asc" | "desc";
 
@@ -91,21 +91,22 @@ export type StructuredIndex =
   | OrderByIndex
   | SkipIndex;
 
-export const TABLE_INDEX_STATUSES = [
+export const REQUEST_INDEX_STATUSES = [
   "pending",
   "running",
   "succeeded",
   "failed",
   "dropped",
 ] as const;
-export type TableIndexStatus = (typeof TABLE_INDEX_STATUSES)[number];
+export type RequestIndexStatus = (typeof REQUEST_INDEX_STATUSES)[number];
 
-export type TableIndex = {
-  id: TableIndexId;
+// A single Metabase-managed index request, CRUD'd under `/api/indexes/request/:id`.
+export type RequestIndex = {
+  id: RequestIndexId;
   transform_id: TransformId;
   index_name: string;
   structured: StructuredIndex;
-  status: TableIndexStatus;
+  status: RequestIndexStatus;
   error_message: string | null;
   created_by: UserId | null;
   created_at: string;
@@ -114,8 +115,11 @@ export type TableIndex = {
 };
 
 // Managed-row bookkeeping carried under `request` on a merged entry: the stored
-// TableIndex minus the fields the merged shape already exposes at top level.
-export type TableIndexRequest = Omit<TableIndex, "transform_id" | "index_name">;
+// RequestIndex minus the fields the merged shape already exposes at top level.
+export type MergedIndexRequest = Omit<
+  RequestIndex,
+  "transform_id" | "index_name"
+>;
 
 // A single entry in the merged index list: an index as observed in the warehouse,
 // carrying `request` only on Metabase-managed rows. Mirrors the backend
@@ -133,7 +137,7 @@ export type MergedIndex = {
   is_valid: boolean;
   partial_predicate: string | null;
   access_method: string | null;
-  request?: TableIndexRequest;
+  request?: MergedIndexRequest;
 };
 
 export type ListTableIndexesRequest = {
@@ -144,12 +148,12 @@ export type ListTableIndexesResponse = {
   data: MergedIndex[];
 };
 
-export type CreateTableIndexRequest = {
+export type CreateRequestIndexRequest = {
   transform_id: TransformId;
   structured: StructuredIndex;
 };
 
-export type UpdateTableIndexRequest = {
-  id: TableIndexId;
+export type UpdateRequestIndexRequest = {
+  id: RequestIndexId;
   structured: StructuredIndex;
 };

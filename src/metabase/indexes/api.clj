@@ -78,13 +78,13 @@
         warehouse (reconcile/fetch-warehouse-indexes (t2/select-one :model/Database database) schema table-name)]
     {:data (reconcile/merge-indexes managed warehouse)}))
 
-(api.macros/defendpoint :get "/:id" :- TableIndex
-  "Fetch a single managed index (e.g. to poll its status)."
+(api.macros/defendpoint :get "/request/:id" :- TableIndex
+  "Fetch a single managed index request (e.g. to poll its status)."
   [{:keys [id]} :- [:map [:id ms/PositiveInt]]]
   (doto (api/check-404 (t2/select-one :model/TableIndex :id id))
     (read-check-owner!)))
 
-(api.macros/defendpoint :post "/" :- TableIndex
+(api.macros/defendpoint :post "/request" :- TableIndex
   "Create a managed index on a transform's target table. Requires write access to the transform."
   [_route-params
    _query-params
@@ -102,7 +102,7 @@
                                     :structured   structured
                                     :created_by   api/*current-user-id*})))
 
-(api.macros/defendpoint :put "/:id" :- TableIndex
+(api.macros/defendpoint :put "/request/:id" :- TableIndex
   "Replace the structured definition of a managed index, resetting it to pending."
   [{:keys [id]} :- [:map [:id ms/PositiveInt]]
    _query-params
@@ -117,7 +117,7 @@
     (t2/select-one :model/TableIndex :id id)))
 
 #_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
-(api.macros/defendpoint :delete "/:id"
+(api.macros/defendpoint :delete "/request/:id"
   "Delete a managed index."
   [{:keys [id]} :- [:map [:id ms/PositiveInt]]]
   (write-check-owner! (api/check-404 (t2/select-one :model/TableIndex :id id)))

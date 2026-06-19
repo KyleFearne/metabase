@@ -16,7 +16,7 @@ import {
   useTreeTableInstance,
 } from "metabase/ui";
 import { EMPTY_CELL_PLACEHOLDER } from "metabase/utils/constants";
-import type { MergedIndex, TableIndexStatus } from "metabase-types/api";
+import type { MergedIndex, RequestIndexStatus } from "metabase-types/api";
 
 // TreeTable rows need a stable `id`. A managed index uses its `request` id; a
 // warehouse index Metabase doesn't manage carries none, so derive one from its
@@ -36,7 +36,7 @@ const STATUS_COLORS = {
   succeeded: "success",
   failed: "error",
   dropped: "warning",
-} as const satisfies Record<TableIndexStatus, string>;
+} as const satisfies Record<RequestIndexStatus, string>;
 
 function IndexStatusCell({ index }: { index: MergedIndex }) {
   const { request } = index;

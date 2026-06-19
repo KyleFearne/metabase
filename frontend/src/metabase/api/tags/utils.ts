@@ -42,12 +42,12 @@ import type {
   ParameterId,
   PopularItem,
   RecentItem,
+  RequestIndex,
   Revision,
   SearchModel,
   SearchResult,
   Segment,
   Table,
-  TableIndex,
   TableRemapping,
   Task,
   TaskRun,
@@ -672,8 +672,8 @@ export function provideSubscriptionTags(
   return [idTag("subscription", subscription.id)];
 }
 
-export function provideTableIndexTags(
-  index: TableIndex,
+export function provideRequestIndexTags(
+  index: RequestIndex,
 ): TagDescription<TagType>[] {
   return [
     idTag("table-index", index.id),

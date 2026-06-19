@@ -4,7 +4,7 @@ import * as Yup from "yup";
 
 import {
   skipToken,
-  useCreateTableIndexMutation,
+  useCreateRequestIndexMutation,
   useGetTableQueryMetadataQuery,
 } from "metabase/api";
 import { getErrorMessage } from "metabase/api/utils";
@@ -62,7 +62,7 @@ function CreateIndexForm({
   onClose,
 }: CreateIndexModalProps) {
   const [sendToast] = useToast();
-  const [createIndex] = useCreateTableIndexMutation();
+  const [createIndex] = useCreateRequestIndexMutation();
   const { data: table, isLoading } = useGetTableQueryMetadataQuery(
     tableId != null ? { id: tableId } : skipToken,
   );
