@@ -60,9 +60,10 @@ export function initSdkTracker({
     stateStorageStrategy: "none",
     // Server-side anonymisation: strip IP + network_userid, send the SP-Anonymous header.
     anonymousTracking: { withServerAnonymisation: true },
-    // withCredentials was added in @snowplow/browser-tracker 3.2.0. Until the package
-    // is upgraded (package.json already targets 3.2.0; pin lock file when upgrading)
-    // the proxy endpoint must send Allow-Credentials: true or the field must be set here.
+    // The proxy endpoint uses a wildcard CORS origin. Credentialed requests are blocked
+    // by the browser under wildcard CORS (the spec forbids Allow-Credentials: true with *),
+    // so we must send without credentials.
+    withCredentials: false,
     plugins: [createSdkInstanceContextPlugin()],
   });
   return true;
