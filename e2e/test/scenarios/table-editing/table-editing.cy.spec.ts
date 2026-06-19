@@ -400,7 +400,10 @@ describe("scenarios > table-editing", () => {
           cy.get("@ampmSelect").select("AM");
           // Mantine's time picker can revert a scripted keystroke under load, so
           // verify the save against what it committed, not the raw typed value.
-          cy.findAllByRole("spinbutton").eq(0).invoke("val").as("committedHour");
+          cy.findAllByRole("spinbutton")
+            .eq(0)
+            .invoke("val")
+            .as("committedHour");
           cy.findAllByRole("spinbutton")
             .eq(1)
             .invoke("val")
