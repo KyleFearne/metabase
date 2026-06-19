@@ -42,8 +42,12 @@
       "a"                   ["a"]
       "(lower(s))"          ["lower(s)"]               ; wrapped single expression, not truncated
       "a, cityHash64(s, b)" ["a" "cityHash64(s, b)"]   ; function key's inner comma is not a split point
-      ""                    nil
-      nil                   nil)))
+      ;; a backtick-quoted name can hold a comma or paren; it must stay one column and come out bare
+      "`weird,name`, b"     ["weird,name" "b"]
+      "`paren(col`, b"      ["paren(col" "b"]
+      "`back``tick`"        ["back`tick"]              ; doubled backtick is an escaped backtick
+      ""                    []                         ; blank -> [], so :key-columns stays schema-valid
+      nil                   [])))
 
 (deftest ^:parallel clickhouse-version
   (mt/test-driver :clickhouse
