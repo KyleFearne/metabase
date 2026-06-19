@@ -113,12 +113,35 @@ export type TableIndex = {
   last_executed_at: string | null;
 };
 
+// Managed-row bookkeeping carried under `request` on a merged entry: the stored
+// TableIndex minus the fields the merged shape already exposes at top level.
+export type TableIndexRequest = Omit<TableIndex, "transform_id" | "index_name">;
+
+// A single entry in the merged index list: an index as observed in the warehouse,
+// carrying `request` only on Metabase-managed rows. Mirrors the backend
+// `metabase.indexes.api/MergedIndex` built by `reconcile/merge-indexes`. `kind` is
+// reality-observed, so it isn't constrained to the managed StructuredIndex kinds.
+export type MergedIndex = {
+  metabase_managed: boolean;
+  present_in_warehouse: boolean;
+  name: string | null;
+  kind: string;
+  key_columns: string[];
+  include_columns: (string | null)[];
+  is_unique: boolean;
+  is_primary: boolean;
+  is_valid: boolean;
+  partial_predicate: string | null;
+  access_method: string | null;
+  request?: TableIndexRequest;
+};
+
 export type ListTableIndexesRequest = {
   "transform-id": TransformId;
 };
 
 export type ListTableIndexesResponse = {
-  data: TableIndex[];
+  data: MergedIndex[];
 };
 
 export type CreateTableIndexRequest = {

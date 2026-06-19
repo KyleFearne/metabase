@@ -31,6 +31,7 @@ import type {
   LoggerPreset,
   Measure,
   MeasureId,
+  MergedIndex,
   Metric,
   MetricId,
   ModelCacheRefreshStatus,
@@ -681,9 +682,14 @@ export function provideTableIndexTags(
 }
 
 export function provideTableIndexListTags(
-  indexes: TableIndex[],
+  indexes: MergedIndex[],
 ): TagDescription<TagType>[] {
-  return [listTag("table-index"), ...indexes.flatMap(provideTableIndexTags)];
+  return [
+    listTag("table-index"),
+    ...indexes.flatMap((index) =>
+      index.request ? [idTag("table-index", index.request.id)] : [],
+    ),
+  ];
 }
 
 export function provideTableListTags(

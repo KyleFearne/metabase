@@ -16,19 +16,18 @@ import {
   useTreeTableInstance,
 } from "metabase/ui";
 import { EMPTY_CELL_PLACEHOLDER } from "metabase/utils/constants";
-import type {
-  StructuredIndex,
-  TableIndex,
-  TableIndexStatus,
-} from "metabase-types/api";
+import type { MergedIndex, TableIndexStatus } from "metabase-types/api";
 
-function getIndexColumnNames(structured: StructuredIndex): string[] {
-  if (structured.kind === "distkey") {
-    return [structured.column];
+// TreeTable rows need a stable `id`. A managed index uses its `request` id; a
+// warehouse index Metabase doesn't manage carries none, so derive one from its
+// observed identity.
+type IndexRow = MergedIndex & { id: string };
+
+function getRowId(index: MergedIndex): string {
+  if (index.request) {
+    return String(index.request.id);
   }
-  return structured.columns.map((column) =>
-    column.direction ? `${column.name} ${column.direction}` : column.name,
-  );
+  return `warehouse:${index.name ?? index.kind}:${index.key_columns.join(",")}`;
 }
 
 const STATUS_COLORS = {
@@ -39,69 +38,78 @@ const STATUS_COLORS = {
   dropped: "warning",
 } as const satisfies Record<TableIndexStatus, string>;
 
-function IndexStatusCell({ index }: { index: TableIndex }) {
-  const badge = (
-    <Badge color={STATUS_COLORS[index.status]}>{index.status}</Badge>
-  );
+function IndexStatusCell({ index }: { index: MergedIndex }) {
+  const { request } = index;
+  if (!request) {
+    return <Badge color="text-secondary">{t`Unmanaged`}</Badge>;
+  }
 
-  if (index.status === "failed" && index.error_message) {
-    return <Tooltip label={index.error_message}>{badge}</Tooltip>;
+  const badge = (
+    <Badge color={STATUS_COLORS[request.status]}>{request.status}</Badge>
+  );
+  if (request.status === "failed" && request.error_message) {
+    return <Tooltip label={request.error_message}>{badge}</Tooltip>;
   }
   return badge;
 }
 
-function IndexColumnsCell({ structured }: { structured: StructuredIndex }) {
+function IndexColumnsCell({ columns }: { columns: string[] }) {
   return (
     <Group gap="xs" wrap="nowrap">
-      {getIndexColumnNames(structured).map((name) => (
+      {columns.map((name) => (
         <Code key={name}>{name}</Code>
       ))}
     </Group>
   );
 }
 
-function getColumns(): TreeTableColumnDef<TableIndex>[] {
+function getColumns(): TreeTableColumnDef<IndexRow>[] {
   return [
     {
       id: "name",
       header: t`Name`,
       minWidth: "auto",
       maxAutoWidth: 320,
-      accessorFn: (index) => index.index_name,
-      cell: ({ row }) => <Ellipsified>{row.original.index_name}</Ellipsified>,
+      accessorFn: (index) => index.name ?? "",
+      cell: ({ row }) =>
+        row.original.name ? (
+          <Ellipsified>{row.original.name}</Ellipsified>
+        ) : (
+          EMPTY_CELL_PLACEHOLDER
+        ),
     },
     {
       id: "kind",
       header: t`Kind`,
       width: "auto",
-      accessorFn: (index) => index.structured.kind,
-      cell: ({ row }) => <Badge>{row.original.structured.kind}</Badge>,
+      accessorFn: (index) => index.kind,
+      cell: ({ row }) => <Badge>{row.original.kind}</Badge>,
     },
     {
       id: "columns",
       header: t`Columns`,
       minWidth: "auto",
       maxAutoWidth: 480,
-      accessorFn: (index) => getIndexColumnNames(index.structured).join(", "),
+      accessorFn: (index) => index.key_columns.join(", "),
       cell: ({ row }) => (
-        <IndexColumnsCell structured={row.original.structured} />
+        <IndexColumnsCell columns={row.original.key_columns} />
       ),
     },
     {
       id: "status",
       header: t`Status`,
       width: "auto",
-      accessorFn: (index) => index.status,
+      accessorFn: (index) => index.request?.status ?? "",
       cell: ({ row }) => <IndexStatusCell index={row.original} />,
     },
     {
       id: "last_executed_at",
       header: t`Last run`,
       width: "auto",
-      accessorFn: (index) => index.last_executed_at ?? "",
+      accessorFn: (index) => index.request?.last_executed_at ?? "",
       cell: ({ row }) =>
-        row.original.last_executed_at ? (
-          <DateTime value={row.original.last_executed_at} />
+        row.original.request?.last_executed_at ? (
+          <DateTime value={row.original.request.last_executed_at} />
         ) : (
           EMPTY_CELL_PLACEHOLDER
         ),
@@ -110,15 +118,19 @@ function getColumns(): TreeTableColumnDef<TableIndex>[] {
 }
 
 type IndexTableProps = {
-  indexes: TableIndex[];
+  indexes: MergedIndex[];
 };
 
 export function IndexTable({ indexes }: IndexTableProps) {
   const columns = useMemo(() => getColumns(), []);
-  const instance = useTreeTableInstance<TableIndex>({
-    data: indexes,
+  const data = useMemo<IndexRow[]>(
+    () => indexes.map((index) => ({ ...index, id: getRowId(index) })),
+    [indexes],
+  );
+  const instance = useTreeTableInstance<IndexRow>({
+    data,
     columns,
-    getNodeId: (index) => String(index.id),
+    getNodeId: (row) => row.id,
   });
 
   return (
