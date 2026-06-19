@@ -114,17 +114,11 @@ export type RequestIndex = {
   last_executed_at: string | null;
 };
 
-// Managed-row bookkeeping carried under `request` on a merged entry: the stored
-// RequestIndex minus the fields the merged shape already exposes at top level.
-export type MergedIndexRequest = Omit<
-  RequestIndex,
-  "transform_id" | "index_name"
->;
-
 // A single entry in the merged index list: an index as observed in the warehouse,
-// carrying `request` only on Metabase-managed rows. Mirrors the backend
-// `metabase.indexes.api/MergedIndex` built by `reconcile/merge-indexes`. `kind` is
-// reality-observed, so it isn't constrained to the managed StructuredIndex kinds.
+// carrying the full managed `request` (a RequestIndex) only on Metabase-managed
+// rows. Mirrors the backend `metabase.indexes.api/Index` built by
+// `reconcile/merge-indexes`. `kind` is reality-observed, so it isn't constrained
+// to the managed StructuredIndex kinds.
 export type MergedIndex = {
   metabase_managed: boolean;
   present_in_warehouse: boolean;
@@ -137,7 +131,7 @@ export type MergedIndex = {
   is_valid: boolean;
   partial_predicate: string | null;
   access_method: string | null;
-  request?: MergedIndexRequest;
+  request?: RequestIndex;
 };
 
 export type ListTableIndexesRequest = {
