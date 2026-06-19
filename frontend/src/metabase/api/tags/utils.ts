@@ -27,11 +27,11 @@ import type {
   GetUserKeyValueRequest,
   Group,
   GroupListQuery,
+  Index,
   InspectorLens,
   LoggerPreset,
   Measure,
   MeasureId,
-  MergedIndex,
   Metric,
   MetricId,
   ModelCacheRefreshStatus,
@@ -682,7 +682,7 @@ export function provideRequestIndexTags(
 }
 
 export function provideTableIndexListTags(
-  indexes: MergedIndex[],
+  indexes: Index[],
 ): TagDescription<TagType>[] {
   return [
     listTag("table-index"),

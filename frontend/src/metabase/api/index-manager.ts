@@ -1,8 +1,8 @@
 import type {
   CreateRequestIndexRequest,
+  Index,
   ListTableIndexesRequest,
   ListTableIndexesResponse,
-  MergedIndex,
   RequestIndex,
   RequestIndexId,
   UpdateRequestIndexRequest,
@@ -19,7 +19,7 @@ import {
 
 export const indexManagerApi = Api.injectEndpoints({
   endpoints: (builder) => ({
-    listTableIndexes: builder.query<MergedIndex[], ListTableIndexesRequest>({
+    listTableIndexes: builder.query<Index[], ListTableIndexesRequest>({
       query: (params) => ({
         method: "GET",
         url: "/api/indexes",

@@ -16,14 +16,14 @@ import {
   useTreeTableInstance,
 } from "metabase/ui";
 import { EMPTY_CELL_PLACEHOLDER } from "metabase/utils/constants";
-import type { MergedIndex, RequestIndexStatus } from "metabase-types/api";
+import type { Index, RequestIndexStatus } from "metabase-types/api";
 
 // TreeTable rows need a stable `id`. A managed index uses its `request` id; a
 // warehouse index Metabase doesn't manage carries none, so derive one from its
 // observed identity.
-type IndexRow = MergedIndex & { id: string };
+type IndexRow = Index & { id: string };
 
-function getRowId(index: MergedIndex): string {
+function getRowId(index: Index): string {
   if (index.request) {
     return String(index.request.id);
   }
@@ -38,7 +38,7 @@ const STATUS_COLORS = {
   dropped: "warning",
 } as const satisfies Record<RequestIndexStatus, string>;
 
-function IndexStatusCell({ index }: { index: MergedIndex }) {
+function IndexStatusCell({ index }: { index: Index }) {
   const { request } = index;
   if (!request) {
     return <Badge color="text-secondary">{t`Unmanaged`}</Badge>;
@@ -118,7 +118,7 @@ function getColumns(): TreeTableColumnDef<IndexRow>[] {
 }
 
 type IndexTableProps = {
-  indexes: MergedIndex[];
+  indexes: Index[];
 };
 
 export function IndexTable({ indexes }: IndexTableProps) {
