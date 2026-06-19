@@ -4,10 +4,13 @@ import {
   trackSelfDescribingEvent,
 } from "@snowplow/browser-tracker";
 
-import { getSdkStore } from "embedding-sdk-bundle/store";
+import type { State } from "metabase/redux/store";
 import { trackMetaplowEvent } from "metabase/utils/metaplow";
 import Settings from "metabase/utils/settings";
 import type { SimpleEventSchema } from "metabase-types/analytics/event";
+
+// Minimal structural type: only the settings slice the instance-context plugin needs.
+type SettingsGetter = () => Pick<State, "settings">;
 
 // The SDK runs inside the customer's app. A direct POST to the Snowplow
 // collector (`sp.metabase.com`) is cross-origin and blocked by a strict
@@ -35,10 +38,16 @@ export function __resetTrackerForTesting(): void {
 }
 
 // Initialize the SDK's Snowplow tracker. Idempotent — safe under StrictMode double-mount.
+//
+// getStoreState must be the Redux store's getState() from the actual ComponentProvider
+// store (via useSdkStore). The instance-context plugin calls it at event-send time, so
+// settings are read from the live store, not a snapshot captured at init time.
 export function initSdkTracker({
   metabaseInstanceUrl,
+  getStoreState,
 }: {
   metabaseInstanceUrl: string;
+  getStoreState: SettingsGetter;
 }): WasJustInitialized {
   if (trackerInitialized) {
     return false;
@@ -64,18 +73,17 @@ export function initSdkTracker({
     // by the browser under wildcard CORS (the spec forbids Allow-Credentials: true with *),
     // so we must send without credentials.
     withCredentials: false,
-    plugins: [createSdkInstanceContextPlugin()],
+    plugins: [createSdkInstanceContextPlugin(getStoreState)],
   });
   return true;
 }
 
-// Attaches the instance context to every SDK event. Reads from the SDK Redux
-// store at event-send time (not at tracker init time) so settings are available
-// even if the store hasn't loaded all values before the first event fires.
-function createSdkInstanceContextPlugin() {
+// Attaches the instance context to every SDK event. Closes over the live
+// store's getState so settings are read at event-send time, not at init time.
+function createSdkInstanceContextPlugin(getStoreState: SettingsGetter) {
   return {
     contexts(): SelfDescribingJson[] {
-      const settings = getSdkStore().getState().settings?.values;
+      const settings = getStoreState().settings?.values;
       const version = settings?.["version"] ?? {};
 
       return [

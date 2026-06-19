@@ -8,16 +8,11 @@ import { createMockTokenFeatures } from "metabase-types/api/mocks";
 
 const mockNewTracker = jest.fn();
 const mockTrackSelfDescribingEvent = jest.fn();
-const mockGetSdkStore = jest.fn();
 const mockTrackMetaplowEvent = jest.fn();
 
 jest.mock("@snowplow/browser-tracker", () => ({
   newTracker: mockNewTracker,
   trackSelfDescribingEvent: mockTrackSelfDescribingEvent,
-}));
-
-jest.mock("embedding-sdk-bundle/store", () => ({
-  getSdkStore: mockGetSdkStore,
 }));
 
 jest.mock("metabase/utils/metaplow", () => ({
@@ -36,24 +31,20 @@ jest.mock("metabase/utils/settings", () => ({
 // Re-import per test so the module-scoped trackerInitialized guard resets.
 const loadModule = () => import("./snowplow");
 
-function makeStore(overrides: Partial<EnterpriseSettings> = {}) {
-  return {
-    getState: () =>
-      createMockState({
-        sdk: createMockSdkState(),
-        settings: createMockSettingsState({
-          "anon-tracking-enabled": true,
-          ...overrides,
-        }),
-      }),
-  };
+function makeStoreState(overrides: Partial<EnterpriseSettings> = {}) {
+  return createMockState({
+    sdk: createMockSdkState(),
+    settings: createMockSettingsState({
+      "anon-tracking-enabled": true,
+      ...overrides,
+    }),
+  });
 }
 
 describe("embedding-sdk-bundle/analytics/snowplow (CSP transport)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.resetModules();
-    mockGetSdkStore.mockReturnValue(makeStore());
   });
 
   describe("initSdkTracker", () => {
@@ -62,7 +53,10 @@ describe("embedding-sdk-bundle/analytics/snowplow (CSP transport)", () => {
     it("configures the proxy path, anonymises, and touches no storage", async () => {
       const { initSdkTracker } = await loadModule();
 
-      initSdkTracker({ metabaseInstanceUrl: "https://metabase.example.com" });
+      initSdkTracker({
+        metabaseInstanceUrl: "https://metabase.example.com",
+        getStoreState: () => makeStoreState(),
+      });
 
       expect(mockNewTracker).toHaveBeenCalledTimes(1);
       expect(mockNewTracker).toHaveBeenCalledWith(
@@ -79,36 +73,51 @@ describe("embedding-sdk-bundle/analytics/snowplow (CSP transport)", () => {
 
     it("is idempotent — a second call does not create another tracker", async () => {
       const { initSdkTracker } = await loadModule();
+      const getStoreState = () => makeStoreState();
 
-      initSdkTracker({ metabaseInstanceUrl: "https://metabase.example.com" });
-      initSdkTracker({ metabaseInstanceUrl: "https://metabase.example.com" });
+      initSdkTracker({
+        metabaseInstanceUrl: "https://metabase.example.com",
+        getStoreState,
+      });
+      initSdkTracker({
+        metabaseInstanceUrl: "https://metabase.example.com",
+        getStoreState,
+      });
 
       expect(mockNewTracker).toHaveBeenCalledTimes(1);
     });
 
     it("returns true on first call and false on subsequent calls", async () => {
       const { initSdkTracker } = await loadModule();
+      const getStoreState = () => makeStoreState();
 
       expect(
-        initSdkTracker({ metabaseInstanceUrl: "https://metabase.example.com" }),
+        initSdkTracker({
+          metabaseInstanceUrl: "https://metabase.example.com",
+          getStoreState,
+        }),
       ).toBe(true);
       expect(
-        initSdkTracker({ metabaseInstanceUrl: "https://metabase.example.com" }),
+        initSdkTracker({
+          metabaseInstanceUrl: "https://metabase.example.com",
+          getStoreState,
+        }),
       ).toBe(false);
     });
 
     it("attaches the instance context with analytics-uuid to every event", async () => {
-      mockGetSdkStore.mockReturnValue(
-        makeStore({
-          "analytics-uuid": "test-uuid-123",
-          version: { tag: "v0.50.0" } as EnterpriseSettings["version"],
-          "instance-creation": "2024-01-01",
-          "token-features": createMockTokenFeatures(),
-        }),
-      );
+      const state = makeStoreState({
+        "analytics-uuid": "test-uuid-123",
+        version: { tag: "v0.50.0" } as EnterpriseSettings["version"],
+        "instance-creation": "2024-01-01",
+        "token-features": createMockTokenFeatures(),
+      });
       const { initSdkTracker } = await loadModule();
 
-      initSdkTracker({ metabaseInstanceUrl: "https://metabase.example.com" });
+      initSdkTracker({
+        metabaseInstanceUrl: "https://metabase.example.com",
+        getStoreState: () => state,
+      });
 
       const [, , config] = mockNewTracker.mock.lastCall!;
       const [plugin] = config.plugins;

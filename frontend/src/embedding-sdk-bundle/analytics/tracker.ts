@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+import { useSdkStore } from "embedding-sdk-bundle/store";
 import type { MetabaseAuthConfig } from "embedding-sdk-bundle/types/auth-config";
 import { getSdkPackageVersion } from "embedding-sdk-shared/lib/get-build-info";
 import { isEmbeddingEajs, isEmbeddingSdk } from "metabase/embedding-sdk/config";
@@ -47,6 +48,7 @@ export function useInitSdkTracker(
 ) {
   const isTrackingEnabled = useIsTrackingEnabled();
   const authMethod = deriveAuthMethod(authConfig);
+  const store = useSdkStore();
 
   setSdkTrackingContext(authMethod, localeUsed);
 
@@ -59,7 +61,10 @@ export function useInitSdkTracker(
     }
 
     // Initialize the Snowplow proxy tracker before the first event. Idempotent.
-    initSdkTracker({ metabaseInstanceUrl: authConfig.metabaseInstanceUrl });
+    initSdkTracker({
+      metabaseInstanceUrl: authConfig.metabaseInstanceUrl,
+      getStoreState: store.getState,
+    });
     beaconFired = true;
 
     trackSdkSimpleEvent({
