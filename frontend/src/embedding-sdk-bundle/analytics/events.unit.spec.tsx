@@ -1,7 +1,8 @@
 // jest.mock is hoisted before imports, so jest.fn() must be defined inline.
 // External const refs (like `const mockFoo = jest.fn()`) cause TDZ errors.
-jest.mock("metabase/analytics/event", () => ({
-  trackSimpleEvent: jest.fn(),
+jest.mock("embedding-sdk-bundle/analytics/snowplow", () => ({
+  trackSdkSimpleEvent: jest.fn(),
+  // SdkAuthMethod is a type — no runtime value needed.
 }));
 
 jest.mock("embedding-sdk-shared/lib/get-build-info", () => ({
@@ -9,16 +10,16 @@ jest.mock("embedding-sdk-shared/lib/get-build-info", () => ({
 }));
 
 import { renderHookWithProviders } from "__support__/ui";
+import { trackSdkSimpleEvent } from "embedding-sdk-bundle/analytics/snowplow";
 import { sdkReducers } from "embedding-sdk-bundle/store";
 import { createMockSdkState } from "embedding-sdk-bundle/test/mocks/state";
 import { setupSdkState } from "embedding-sdk-bundle/test/server-mocks/sdk-init";
-import { trackSimpleEvent } from "metabase/analytics/event";
 import { createMockSettings } from "metabase-types/api/mocks";
 
 import type { SdkComponentName } from "./component-events";
 import { useTrackSdkComponentMount } from "./component-events";
 
-const mockTrackSimpleEvent = jest.mocked(trackSimpleEvent);
+const mockTrackSdkSimpleEvent = jest.mocked(trackSdkSimpleEvent);
 
 // Unique instance counter so firedKeys never causes cross-test interference.
 let nextId = 1;
@@ -70,8 +71,8 @@ describe("useTrackSdkComponentMount", () => {
       properties: { ...STUB_DASHBOARD_PROPS, with_title: true },
     });
 
-    expect(mockTrackSimpleEvent).toHaveBeenCalledTimes(1);
-    expect(mockTrackSimpleEvent).toHaveBeenCalledWith(
+    expect(mockTrackSdkSimpleEvent).toHaveBeenCalledTimes(1);
+    expect(mockTrackSdkSimpleEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         event: "embedding_sdk_component_rendered",
         triggered_from: "StaticDashboard",
@@ -88,7 +89,7 @@ describe("useTrackSdkComponentMount", () => {
       properties: STUB_DASHBOARD_PROPS,
     });
 
-    expect(mockTrackSimpleEvent).not.toHaveBeenCalled();
+    expect(mockTrackSdkSimpleEvent).not.toHaveBeenCalled();
   });
 
   it("deduplicates — re-renders with the same instance key do not re-fire", () => {
@@ -100,7 +101,7 @@ describe("useTrackSdkComponentMount", () => {
     rerender();
     rerender();
 
-    expect(mockTrackSimpleEvent).toHaveBeenCalledTimes(1);
+    expect(mockTrackSdkSimpleEvent).toHaveBeenCalledTimes(1);
   });
 
   it("fires separate events for two mounts of the same component type", () => {
@@ -132,13 +133,13 @@ describe("useTrackSdkComponentMount", () => {
       renderOptions,
     );
 
-    expect(mockTrackSimpleEvent).toHaveBeenCalledTimes(2);
+    expect(mockTrackSdkSimpleEvent).toHaveBeenCalledTimes(2);
   });
 
   it("uses the correct component name as triggered_from", () => {
     setup({ componentName: "MetabotQuestion", properties: { layout: "auto" } });
 
-    expect(mockTrackSimpleEvent).toHaveBeenCalledWith(
+    expect(mockTrackSdkSimpleEvent).toHaveBeenCalledWith(
       expect.objectContaining({ triggered_from: "MetabotQuestion" }),
     );
   });
@@ -146,7 +147,7 @@ describe("useTrackSdkComponentMount", () => {
   it("fires for CreateDashboardModal with empty properties", () => {
     setup({ componentName: "CreateDashboardModal" });
 
-    expect(mockTrackSimpleEvent).toHaveBeenCalledWith(
+    expect(mockTrackSdkSimpleEvent).toHaveBeenCalledWith(
       expect.objectContaining({
         event: "embedding_sdk_component_rendered",
         triggered_from: "CreateDashboardModal",
@@ -161,7 +162,7 @@ describe("useTrackSdkComponentMount", () => {
       properties: STUB_DASHBOARD_PROPS,
     });
 
-    const call = mockTrackSimpleEvent.mock.calls[0][0];
+    const call = mockTrackSdkSimpleEvent.mock.calls[0][0];
     const detail = JSON.parse(call.event_detail!);
     expect(detail.sdk_version).toBe("1.2.3");
   });

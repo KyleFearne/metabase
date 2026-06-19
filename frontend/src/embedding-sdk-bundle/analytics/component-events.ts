@@ -1,16 +1,15 @@
 import { useEffect, useRef } from "react";
 
 import { getSdkPackageVersion } from "embedding-sdk-shared/lib/get-build-info";
-import { trackSimpleEvent } from "metabase/analytics/event";
 import { useSetting } from "metabase/common/hooks";
 import { isEmbeddingEajs, isEmbeddingSdk } from "metabase/embedding-sdk/config";
+
+import { type SdkAuthMethod, trackSdkSimpleEvent } from "./snowplow";
 
 export function useIsTrackingEnabled(): boolean {
   // Default false so we don't fire events during the settings-load window for users who opted out.
   return useSetting("anon-tracking-enabled") ?? false;
 }
-
-type SdkAuthMethod = "guest" | "api_key" | "sso";
 
 // Module-level state set synchronously during ComponentProvider render so child
 // component effects can read the correct values on the first commit.
@@ -181,7 +180,7 @@ export function useTrackSdkComponentMount<C extends SdkComponentName>(
       ).map(([key, value]) => [key, value == null ? null : String(value)]),
     );
 
-    trackSimpleEvent({
+    trackSdkSimpleEvent({
       event: "embedding_sdk_component_rendered",
       triggered_from: componentName,
       event_detail: JSON.stringify({
