@@ -34,8 +34,12 @@ export const getAxisNameGap = (ticksWidth: number): number => {
 const getYAxisNameGap = (
   ticksWidth: number,
   { theme }: RenderingContext,
+  hasCurrencyTicks: boolean,
 ): number => {
-  return getAxisNameGap(ticksWidth) + theme.cartesian.label.fontSize / 2;
+  return (
+    getAxisNameGap(ticksWidth) +
+    (hasCurrencyTicks ? theme.cartesian.label.fontSize / 2 : 0)
+  );
 };
 
 const getCustomAxisRange = (
@@ -366,7 +370,13 @@ export const buildMetricAxis = (
   renderingContext: RenderingContext,
 ): YAXisOption => {
   const shouldFlipAxisName = position === "right";
-  const nameGap = getYAxisNameGap(ticksWidth, renderingContext);
+  const hasCurrencyTicks =
+    settings.column?.(axisModel.column).number_style === "currency";
+  const nameGap = getYAxisNameGap(
+    ticksWidth,
+    renderingContext,
+    hasCurrencyTicks,
+  );
 
   const range = getYAxisRange(axisModel, yAxisScaleTransforms, settings);
 
