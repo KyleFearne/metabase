@@ -389,36 +389,46 @@ describe("scenarios > table-editing", () => {
         const hour = Math.floor(Math.random() * 12);
         const minute = Math.floor(Math.random() * 60);
 
+        // Set the time by pasting a full 24h "HH:MM" string into the picker.
+        // Mantine's TimePicker onPaste parses the whole string and sets hours,
+        // minutes and AM/PM in a single onChange, avoiding the per-keystroke
+        // controlled-re-render race that drops/reverts scripted digits under load
+        // (typing digit by digit raced the picker's re-sync; see GDGT-2628).
+        // The picker derives AM/PM from the 24h value, so hours 0-11 land as AM
+        // (0 displays as "12" AM).
+        const clipboardData = new DataTransfer();
+        clipboardData.setData(
+          "text",
+          `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+        );
+        const displayHour = String(hour === 0 ? 12 : hour).padStart(2, "0");
+
         H.popover().within(() => {
           cy.findByRole("button", { name: `${day} February 2020` })
             .click()
             // wait for the day to register before editing the time fields
             .should("have.attr", "data-selected", "true");
-          cy.findAllByRole("spinbutton").eq(0).type(hour.toString());
-          cy.findAllByRole("spinbutton").eq(1).type(minute.toString());
-          cy.get('select[data-am-pm="true"]').as("ampmSelect");
-          cy.get("@ampmSelect").select("AM");
-          // Mantine's time picker can revert a scripted keystroke under load, so
-          // verify the save against what it committed, not the raw typed value.
           cy.findAllByRole("spinbutton")
+            .should("have.length", 2)
             .eq(0)
-            .invoke("val")
-            .as("committedHour");
+            .trigger("paste", { clipboardData });
+          // confirm the paste committed before saving
           cy.findAllByRole("spinbutton")
+            .should("have.length", 2)
+            .eq(0)
+            .should("have.value", displayHour);
+          cy.findAllByRole("spinbutton")
+            .should("have.length", 2)
             .eq(1)
-            .invoke("val")
-            .as("committedMinute");
+            .should("have.value", String(minute).padStart(2, "0"));
           // It's safe to click the last button because we're in the popover
           // eslint-disable-next-line metabase/no-unsafe-element-filtering
           cy.findAllByRole("button").last().click();
         });
 
-        cy.wait("@updateTableData").then(function ({ response, request }) {
-          // 12h AM hour: "12" -> 0, otherwise as typed
-          const committedHour = Number(this.committedHour) % 12;
-          const committedMinute = Number(this.committedMinute);
+        cy.wait("@updateTableData").then(({ response, request }) => {
           const targetDate = dayjs(
-            new Date(2020, 1, day, committedHour, committedMinute, 0),
+            new Date(2020, 1, day, hour, minute, 0),
           ).format("YYYY-MM-DDTHH:mm:ss");
 
           const requestDate = request.body.params.datetime;
