@@ -47,23 +47,14 @@ describe("build output validation", () => {
     expect(bundle).toContain("__customVizPlugin__");
   });
 
-  it("React is externalized (not bundled)", () => {
-    const bundle = readFileSync(join(projectDir, "dist", "index.js"), "utf-8");
-    expect(bundle).not.toContain("react-dom");
-    expect(bundle).not.toContain(
-      "__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED",
-    );
-    // The bundle should be small (React alone is ~100KB+)
-    expect(bundle.length).toBeLessThan(10000);
-  });
-
   it("metabase-plugin.json is copied to dist/", () => {
     const manifestPath = join(projectDir, "metabase-plugin.json");
     expect(existsSync(manifestPath)).toBe(true);
     const manifest = JSON.parse(readFileSync(manifestPath, "utf-8"));
     expect(manifest.name).toBe("test-viz-build");
     expect(manifest).toHaveProperty("icon");
-    expect(manifest).toHaveProperty("assets");
+    // Custom viz no longer ship arbitrary assets — only the icon is served.
+    expect(manifest).not.toHaveProperty("assets");
   });
 
   it("build produces an upload-ready .tgz", () => {

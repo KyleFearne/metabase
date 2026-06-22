@@ -72,12 +72,12 @@ When a new release branch is cut, master's `version` is bumped to `0.<NN+1>.0-ca
 
    ```bash
    BRANCH=master ./bin/custom-viz/resolve-release.sh
-   # version=0.61.0-canary.0
+   # version=0.62.0-canary.0
    # npm_tag=canary
-   # git_tag=custom-viz-v0.61.0-canary.0
+   # git_tag=custom-viz-v0.62.0-canary.0
    # stable_tag=
 
-   BRANCH=release-x.61.x CUSTOM_VIZ_PKG=/tmp/fake.json ./bin/custom-viz/resolve-release.sh
+   BRANCH=release-x.62.x CUSTOM_VIZ_PKG=/tmp/fake.json ./bin/custom-viz/resolve-release.sh
    # (set CUSTOM_VIZ_PKG to a scratch file to preview without editing the real one)
    ```
 3. Land the PR through normal review + CI.
@@ -97,6 +97,10 @@ When a new release branch is cut, master's `version` is bumped to `0.<NN+1>.0-ca
 2. `preflight` — fails if the per-version git tag already exists or if the version is already published on npm, then runs `bun run check:package-versions`.
 3. `build-and-publish` — installs, builds, and runs `npm publish --tag <npm_tag>` (skipped when `dry_run=true`).
 4. `tag-git` — creates + pushes the per-version tag, and (when non-empty) force-moves the `custom-viz-NN-stable` tag to the new commit. Pushes skipped when `dry_run=true`.
+
+### npm provenance
+
+Publishing uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) from GitHub Actions, which automatically signs and publishes a Sigstore provenance attestation tying the tarball to this repo and the workflow run that built it. This is why `build-and-publish` requests `id-token: write` and runs `npm publish` without an `NPM_TOKEN`.
 
 ### Promoting `latest`
 

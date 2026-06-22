@@ -50,7 +50,7 @@ export const NavRoot = styled.nav<{ isOpen: boolean }>`
   overflow-y: auto;
 
   ${breakpointMinSmall} {
-    width: ${(props) => (props.isOpen ? NAV_SIDEBAR_WIDTH : 0)};
+    width: ${(props) => (props.isOpen ? "100%" : 0)};
   }
 
   ${breakpointMaxSmall} {
@@ -98,7 +98,7 @@ export const LoadingAndErrorContent = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  color: var(--mb-color-brand);
+  color: var(--mb-color-core-brand);
   text-align: center;
 `;
 

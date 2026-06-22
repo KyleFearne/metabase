@@ -227,7 +227,6 @@
                     (shell/sh* {:quiet? true}
                                "tmux" "new-session" "-d" "-s" bootstrap)
                     true)))]
-
           ;; Synchronous workmux invocation. With --config we don't touch
           ;; ./.workmux.yaml. When not attached we pass -s (own session)
           ;; and -b (background — skip switch-client, which fails with no
@@ -239,7 +238,6 @@
                           "--name" session-name
                           "-P" prompt-file]
                          (when-not attached? ["-s" "-b"])))
-
           ;; If we had to spin up the bootstrap session and the real
           ;; autobot session is now live, clean up the bootstrap so it
           ;; doesn't clutter `tmux ls`. Only kill it when at least one
@@ -250,7 +248,7 @@
                   (shell/sh* {:quiet? true}
                              "tmux" "list-sessions" "-F" "#{session_name}")
                   others (when (zero? exit)
-                           (->> (str/split-lines (or out ""))
+                           (->> (or out [])
                                 (remove #(or (str/blank? %) (= % bootstrap)))
                                 seq))]
               (when others
@@ -421,7 +419,6 @@
       (when (str/blank? command)
         (println (c/red "--command is required"))
         (u/exit 1))
-
       ;; Check for running tmux session
       (when (tmux-session-running? session-name)
         (println (c/red "Session " session-name " is already running!"))
@@ -431,7 +428,6 @@
         (println)
         (println (str "Stop it first with: /autobot-stop " session-name))
         (u/exit 1))
-
       ;; Write the prompt to a temp file — passed to workmux -P for the agent's initial prompt.
       ;; The file is consumed before this fn returns; deleteOnExit ensures cleanup even on crash.
       (let [prompt-file (str (System/getProperty "java.io.tmpdir") "/.autobot-prompt-" session-name ".md")]

@@ -7,10 +7,10 @@
    [metabase.lib.metadata :as lib.metadata]
    [metabase.lib.options :as lib.options]
    [metabase.lib.util :as lib.util]
-   [metabase.lib.util.match :as lib.util.match]
    [metabase.lib.walk :as lib.walk]
    [metabase.util :as u]
    [metabase.util.malli :as mu]
+   [metabase.util.match :as match]
    [metabase.util.performance :as perf :refer [select-keys some empty? not-empty]]))
 
 (defn- filters->condition
@@ -137,12 +137,12 @@
   (if-let [aggregations (lib/aggregations query stage-number)]
     (let [columns (lib/visible-columns query stage-number)]
       (assoc-in query [:stages stage-number :aggregation]
-                (lib.util.match/replace-lite aggregations
+                (match/replace aggregations
                   [:metric _ metric-id]
-                  (if-let [{replacement :aggregation} (get lookup metric-id)]
+                  (if-let [{replacement :aggregation, metric-name :name} (get lookup metric-id)]
                     ;; We have to replace references from the source-metric with references appropriate for
                     ;; this stage (expression/aggregation -> field, field-id to string)
-                    (let [replacement (lib.util.match/replace-lite replacement
+                    (let [replacement (match/replace replacement
                                         [#{:expression :field :aggregation} _ _]
                                         (if-let [col (lib/find-matching-column &match columns)]
                                           (lib/ref col)
@@ -154,13 +154,16 @@
                                 %
                                 {:name (lib/column-name query stage-number replacement)}
                                 (select-keys % [:name :display-name])
+                                ;; The metric card's name is the column's display-name externally,
+                                ;; overriding the inner aggregation's display-name (#58307).
+                                (when metric-name {:display-name metric-name})
                                 (select-keys (get &match 1) [:lib/uuid :name :display-name]))))
                     (throw (ex-info "Incompatible metric" {:match &match :lookup lookup}))))))
     query))
 
 (defn- find-metric-ids
   [x]
-  (lib.util.match/match-many x
+  (match/match-many x
     [:metric _ (id :guard pos-int?)]
     id))
 
@@ -183,8 +186,8 @@
                       (if-let [aggregation (first (lib/aggregations metric-query))]
                         [(:id card-metadata)
                          {:query metric-query
-                              ;; Aggregation inherits `:name` of original aggregation used in a metric query. The original
-                              ;; name is added in `preprocess` above if metric is defined using unnamed aggregation.
+                          ;; Aggregation inherits `:name` of original aggregation used in a metric query. The original
+                          ;; name is added in `preprocess` above if metric is defined using unnamed aggregation.
                           :aggregation aggregation
                           :name metric-name}]
                         (throw (ex-info "Source metric missing aggregation" {:source metric-query})))))))
@@ -228,7 +231,7 @@
 
 (defn- add-join-aliases
   [x source-field->join-alias]
-  (lib.util.match/replace-lite x
+  (match/replace x
     [:field (opts :guard (and (source-field->join-alias (:source-field opts)) (not (:join-alias opts)))) _]
     (assoc-in &match [1 :join-alias] (-> opts :source-field source-field->join-alias))))
 
@@ -291,9 +294,9 @@
                    stage-a-source
                    (not= stage-a-source (:qp/stage-is-from-source-card stage-b))
                    (= (:type metric-metadata) :metric)
-                    ;; This indicates this stage has not been processed
-                    ;; because metrics must have aggregations
-                    ;; if it is missing, then it has been removed in this process
+                   ;; This indicates this stage has not been processed
+                   ;; because metrics must have aggregations
+                   ;; if it is missing, then it has been removed in this process
                    (:aggregation stage-a))
               [idx-a metric-metadata])))
         (partition-all 2 1 (m/indexed expanded-stages))))

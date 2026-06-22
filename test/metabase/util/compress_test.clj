@@ -22,19 +22,16 @@
       (try
         (spit (io/file dir "one") (mt/random-hash))
         (spit (io/file dir "two") (mt/random-hash))
-
         (testing "it is indeed a gzip archive"
           (u.compress/tgz dir archive)
           (let [bytes (Files/readAllBytes (.toPath archive))]
             ;; https://www.ietf.org/rfc/rfc1952.txt, section 2.3.1
             (is (= [(unchecked-byte 0x1f) (unchecked-byte 0x8b)]
                    (take 2 bytes)))))
-
         (testing "uncompressing generates identical folder"
           (u.compress/untgz archive out)
           (is (= (mapv slurp (filter #(.isFile ^File %) (file-seq dir)))
                  (mapv slurp (filter #(.isFile ^File %) (file-seq out))))))
-
         (finally
           (run! io/delete-file (reverse (file-seq dir)))
           (when (.exists archive)
@@ -72,7 +69,7 @@
 
 (deftest untgz-max-uncompressed-bytes-test
   (testing "untgz aborts when total uncompressed bytes exceed :max-uncompressed-bytes"
-    (let [content (.getBytes (apply str (repeat 1024 \a)) "UTF-8")
+    (let [content (.getBytes ^String (apply str (repeat 1024 \a)) "UTF-8")
           archive (create-multi-entry-tgz 10 content) ;; 10 KiB total uncompressed
           out     (doto (io/file (System/getProperty "java.io.tmpdir") (mt/random-name))
                     .mkdirs)]

@@ -3,7 +3,6 @@ import dayjs from "dayjs";
 import _ from "underscore";
 
 import { NULL_DISPLAY_VALUE } from "metabase/utils/constants";
-import { formatValue } from "metabase/utils/formatting";
 import type { OptionsType } from "metabase/utils/formatting/types";
 import { getObjectEntries, getObjectKeys } from "metabase/utils/objects";
 import { isNotNull, isNumber } from "metabase/utils/types";
@@ -39,6 +38,7 @@ import {
   normalizeDate,
   tryGetDate,
 } from "metabase/visualizations/echarts/cartesian/utils/timeseries";
+import { formatValue } from "metabase/visualizations/lib/formatting";
 import { computeNumericDataInterval } from "metabase/visualizations/lib/numeric";
 import { getLineAreaBarComparisonSettings } from "metabase/visualizations/lib/settings";
 import type {
@@ -680,6 +680,31 @@ const getFormatUnit = (
 
   return dimensionColumn.unit;
 };
+
+const isDateColumn = (column: DatasetColumn) => {
+  return (
+    (column.effective_type ?? column.base_type)?.startsWith("type/Date") ??
+    false
+  );
+};
+
+const getCategoryXAxisColumn = (
+  column: DatasetColumn,
+  dataset: ChartDataset,
+) => {
+  if (!isDateColumn(column) || isAbsoluteDateTimeUnit(column.unit)) {
+    return column;
+  }
+
+  const xValues = dataset.map((datum) => datum[X_AXIS_DATA_KEY]);
+  const dataTimeSeriesInterval = computeTimeseriesDataInterval(xValues, null);
+  const formatUnit = dataTimeSeriesInterval
+    ? getFormatUnit(column, dataTimeSeriesInterval)
+    : column.unit;
+
+  return formatUnit ? { ...column, unit: formatUnit } : column;
+};
+
 export function getTimeSeriesXAxisModel(
   dimensionModel: DimensionModel,
   rawSeries: RawSeries,
@@ -826,7 +851,7 @@ export function getXAxisModel(
     );
   }
 
-  const column = dimensionModel.column;
+  const column = getCategoryXAxisColumn(dimensionModel.column, dataset);
   const columnSettings =
     column != null ? (settings.column?.(column) ?? {}) : {};
 

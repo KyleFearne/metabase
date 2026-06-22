@@ -1,15 +1,18 @@
 import type { Store } from "@reduxjs/toolkit";
-import { IndexRedirect, IndexRoute, Route } from "react-router";
+import {
+  IndexRedirect,
+  IndexRoute,
+  Route,
+  type RouteComponent,
+} from "react-router";
 
-import { AdminSettingsLayout } from "metabase/common/components/AdminLayout/AdminSettingsLayout";
+import { AdminSettingsLayout } from "metabase/admin/components/AdminLayout/AdminSettingsLayout";
 import { NotFound } from "metabase/common/components/ErrorPages";
 import {
   PLUGIN_AUTH_PROVIDERS,
-  PLUGIN_REMOTE_SYNC,
   PLUGIN_TRANSFORMS_PYTHON,
 } from "metabase/plugins";
 import type { State } from "metabase/redux/store";
-import { IsAdmin } from "metabase/route-guards";
 import { getSetting } from "metabase/selectors/settings";
 
 import { GoogleAuthForm } from "./settings/auth/components/GoogleAuthForm";
@@ -29,12 +32,16 @@ import { LicenseSettingsPage } from "./settings/components/SettingsPages/License
 import { LocalizationSettingsPage } from "./settings/components/SettingsPages/LocalizationSettingsPage";
 import { MapsSettingsPage } from "./settings/components/SettingsPages/MapsSettingsPage";
 import { PublicSharingSettingsPage } from "./settings/components/SettingsPages/PublicSharingSettingsPage";
+import { RemoteSyncSettingsPage } from "./settings/components/SettingsPages/RemoteSyncSettingsPage";
 import { SlackSettingsPage } from "./settings/components/SettingsPages/SlackSettingsPage";
 import { UpdatesSettingsPage } from "./settings/components/SettingsPages/UpdatesSettingsPage";
 import { UploadSettingsPage } from "./settings/components/SettingsPages/UploadSettingsPage";
 import { WebhooksSettingsPage } from "./settings/components/SettingsPages/WebhooksSettingsPage";
 
-export const getSettingsRoutes = (store: Store<State>) => {
+export const getSettingsRoutes = (
+  store: Store<State>,
+  IsAdmin: RouteComponent,
+) => {
   const devModeEnabled = getSetting(
     store.getState(),
     "custom-viz-plugin-dev-mode-enabled",
@@ -80,10 +87,7 @@ export const getSettingsRoutes = (store: Store<State>) => {
         path="authentication/oidc"
         component={() => <PLUGIN_AUTH_PROVIDERS.SettingsOIDCForm />}
       />
-      <Route
-        path="remote-sync"
-        component={() => <PLUGIN_REMOTE_SYNC.RemoteSyncSettings />}
-      />
+      <Route path="remote-sync" component={RemoteSyncSettingsPage} />
       <Route path="maps" component={MapsSettingsPage} />
       <Route path="localization" component={LocalizationSettingsPage} />
       <Route

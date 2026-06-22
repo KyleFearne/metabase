@@ -27,11 +27,10 @@ npm run build      # Compiles src/ → dist/, then packages it into a .tgz
 ```
 src/
   index.tsx             # Your visualization code — start here
-metabase-plugin.json    # Plugin manifest (name, icon, assets, version)
+metabase-plugin.json    # Plugin manifest (name, icon, version)
 public/
   assets/
     icon.svg            # Visualization icon (shown in chart type picker)
-    ...                 # Any other static assets
 vite.config.ts          # Build configuration (do not edit)
 tsconfig.json
 ```
@@ -42,17 +41,17 @@ tsconfig.json
 
 To develop against a live Metabase instance with hot-reload:
 
-1. Run `npm run dev` — changes hot-reload automatically in Metabase.
-
-2. Start Metabase with dev mode enabled:
+1. Start Metabase with dev mode enabled:
 
    ```
    MB_CUSTOM_VIZ_PLUGIN_DEV_MODE_ENABLED=true
    ```
 
+2. Run `npm run dev` — changes will hot-reload automatically in Metabase.
+
 3. In Metabase, go to **Admin → Custom visualizations → Development**.
 
-4. Register your plugin and set the dev server URL to `http://localhost:5174`.
+4. Set the dev server URL to `http://localhost:5174`.
 
 ---
 
@@ -62,19 +61,17 @@ To develop against a live Metabase instance with hot-reload:
 {
   "name": "__CUSTOM_VIZ_NAME__",
   "icon": "icon.svg",
-  "assets": ["image.png"],
   "metabase": {
     "version": ">=1.60.0"
   }
 }
 ```
 
-| Field              | Description                                                                                      |
-| ------------------ | ------------------------------------------------------------------------------------------------ |
-| `name`             | Unique identifier for the plugin. Must match the `id` returned by your visualization factory.    |
-| `icon`             | Path to the visualization icon (SVG recommended). Automatically served — do not add to `assets`. |
-| `assets`           | Additional static files to bundle (images and JSON only). Reference them via `getAssetUrl()`.    |
-| `metabase.version` | Semver range of compatible Metabase versions (e.g. `">=1.60.0"`, `"^1.60"`).                     |
+| Field              | Description                                                                                   |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| `name`             | Unique identifier for the plugin. Must match the `id` returned by your visualization factory. |
+| `icon`             | Path to the visualization icon (SVG recommended). Served automatically.                      |
+| `metabase.version` | Semver range of compatible Metabase versions (e.g. `">=1.60.0"`, `"^1.60"`).                  |
 
 ---
 
@@ -91,7 +88,6 @@ type Settings = {
 
 const createVisualization: CreateCustomVisualization<Settings> = ({
   defineSetting,
-  getAssetUrl,
   locale,
 }) => {
   const VisualizationComponent = ({ series, settings, width, height }) => {
@@ -126,18 +122,17 @@ export default createVisualization;
 
 ### Visualization definition properties
 
-| Property                       | Type                                | Description                                                                                                                 |
-| ------------------------------ | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `id`                           | `string`                            | Unique identifier. Must match `name` in `metabase-plugin.json`.                                                             |
-| `getName()`                    | `() => string`                      | Display name shown in the chart type picker.                                                                                |
-| `minSize`                      | `{ width, height }`                 | Minimum dashboard grid size.                                                                                                |
-| `defaultSize`                  | `{ width, height }`                 | Default dashboard grid size.                                                                                                |
-| `noHeader`                     | `boolean`                           | When `true`, hides the default card title/description header.                                                               |
-| `canSavePng`                   | `boolean`                           | Set to `false` to disable PNG export for this visualization.                                                                |
-| `checkRenderable`              | `(series, settings) => void`        | Throw here to signal the viz cannot render with the current data or settings. Metabase shows the error message to the user. |
-| `settings`                     | `Record<string, SettingDefinition>` | Map of setting definitions created by `defineSetting()`.                                                                    |
-| `VisualizationComponent`       | `React.ComponentType`               | The interactive React component for dashboard/question rendering.                                                           |
-| `StaticVisualizationComponent` | `React.ComponentType`               | Optional. Component used for email, Slack, and PDF rendering (see below).                                                   |
+| Property                 | Type                                | Description                                                                                                                 |
+| ------------------------ | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `id`                     | `string`                            | Unique identifier. Must match `name` in `metabase-plugin.json`.                                                             |
+| `getName()`              | `() => string`                      | Display name shown in the chart type picker.                                                                                |
+| `minSize`                | `{ width, height }`                 | Minimum dashboard grid size.                                                                                                |
+| `defaultSize`            | `{ width, height }`                 | Default dashboard grid size.                                                                                                |
+| `noHeader`               | `boolean`                           | When `true`, hides the default card title/description header.                                                               |
+| `canSavePng`             | `boolean`                           | Set to `false` to disable PNG export for this visualization.                                                                |
+| `checkRenderable`        | `(series, settings) => void`        | Throw here to signal the viz cannot render with the current data or settings. Metabase shows the error message to the user. |
+| `settings`               | `Record<string, SettingDefinition>` | Map of setting definitions created by `defineSetting()`.                                                                    |
+| `VisualizationComponent` | `React.ComponentType`               | The interactive React component for dashboard/question rendering.                                                           |
 
 ### VisualizationComponent props
 
@@ -210,24 +205,26 @@ You can also pass a **custom React component** as `widget`. Its props (minus the
 
 ---
 
-## Using Assets
+## Using Images
 
-1. Declare assets in `metabase-plugin.json` under `"assets"` (images and JSON files only).
-2. Place files in `public/assets/` during development — they're copied to `dist/assets/` on build.
-3. Reference them in code using `getAssetUrl("filename.png")`.
+A custom visualization is a single JS bundle — it cannot load separate image files
+from the Metabase instance. To use an image, **inline it into your bundle**:
+
+- Draw it as inline `<svg>` (best for icons and simple graphics — this is what the
+  generated `src/index.tsx` does), or
+- Embed a raster image as a base64 `data:` URL:
 
 ```tsx
-const createVisualization: CreateCustomVisualization<Settings> = ({
-  getAssetUrl,
-}) => {
-  // ...
-  return <img src={getAssetUrl("my-image.png")} />;
-};
+const myImage = "data:image/png;base64,iVBORw0KGgo...";
+
+// ...
+return <img src={myImage} alt="My image" />;
 ```
 
-`getAssetUrl()` returns the correct URL in all contexts: interactive rendering, static rendering (base64 data URL), and development mode.
+You can also reference images hosted on your own domain (`<img src="https://example.com/1.png" />`).
 
-> **Note:** The plugin icon is declared separately as `"icon"` in the manifest and is served automatically — do not add it to `"assets"`.
+> **Note:** The only file served from the instance is the plugin `icon`, declared via
+> `"icon"` in the manifest.
 
 ---
 
@@ -248,56 +245,13 @@ The icon appears in the chart type picker and elsewhere in the Metabase UI.
 You can also use Metabase CSS variables inside inline SVG for more control:
 
 ```svg
-<path fill="var(--mb-color-brand)" .../>
+<path fill="var(--mb-color-core-brand)" .../>
 ```
 
 Keep the icon **simple and monochromatic** — avoid gradients and multiple colors.
 
 ---
 
-## Static Visualizations (Email / Slack / PDF)
+## Static Visualizations (Email / Slack)
 
-Provide a `StaticVisualizationComponent` to enable rendering in non-interactive contexts: email attachments, Slack previews, and PDF exports.
-
-```tsx
-const StaticVisualizationComponent = ({
-  series,
-  settings,
-  renderingContext,
-}: CustomStaticVisualizationProps<Settings>) => {
-  const { getColor, fontFamily } = renderingContext;
-
-  return (
-    <svg viewBox={`0 0 540 360`} xmlns="http://www.w3.org/2000/svg">
-      {/* Pure rendering — no event handlers */}
-    </svg>
-  );
-};
-```
-
-### RenderingContext
-
-| Property                         | Type                       | Description                                                                   |
-| -------------------------------- | -------------------------- | ----------------------------------------------------------------------------- |
-| `getColor(name)`                 | `(name: string) => string` | Returns a hex color for the given Metabase color name.                        |
-| `measureText(text, style)`       | `TextWidthMeasurer`        | Measures the rendered width of a text string.                                 |
-| `measureTextHeight(text, style)` | `TextHeightMeasurer`       | Measures the rendered height of a text string.                                |
-| `fontFamily`                     | `string`                   | The font family in use. Apply to root elements for consistent text rendering. |
-
-### GraalJS limitations
-
-Static components run inside a **GraalJS (GraalVM) server-side JavaScript engine**. The following are unavailable:
-
-- Browser globals: `window`, `document`, `navigator`, `localStorage`
-- Network: `fetch`, `XMLHttpRequest`
-- Timers: `setTimeout`, `setInterval`
-- Dynamic imports: `import()`
-
-**Guidelines:**
-
-- Use fixed dimensions (e.g. `width: 540, height: 360`) — no responsive sizing.
-- Return a valid React SVG component.
-- Do not use `width`/`height` props (they are not passed in static context).
-- Avoid external dependencies that rely on browser APIs.
-- Use `getAssetUrl()` — in static context assets are provided as base64 data URLs.
-- Keep rendering pure: data and settings in, JSX out.
+Custom visualizations are not rendered in emails or Slack messages. In those contexts rendering falls back to a default visualization for the underlying query.

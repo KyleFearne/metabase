@@ -39,6 +39,16 @@
   :getter     (fn []
                 ((requiring-resolve 'metabase.premium-features.token-check/-token-status))))
 
+(defsetting locked-meters
+  (deferred-tru "Locally-mirrored is-locked state per meter, refreshed on each successful token-check.")
+  :encryption :no
+  :type       :json
+  :visibility :internal
+  :audit      :never
+  :export?    false
+  :default    {}
+  :doc        false)
+
 ;;; TODO - rename this to premium-features-token?
 (defsetting premium-embedding-token
   (deferred-tru "Token for premium features. Go to the MetaStore to get yours!")
@@ -294,14 +304,26 @@
   "Should we enable the Library?"
   :library)
 
+(defsetting security-center-disabled
+  (deferred-tru "Globally disable Security Center as a customer-controlled escape hatch.")
+  :type             :boolean
+  :feature          :admin-security-center
+  :default          false
+  :visibility       :internal
+  :include-in-list? false
+  :audit            :never
+  :setter           :none
+  :export?          false)
+
 (define-premium-feature security-center-enabled?
   "True if the current instance has Security Center access.
    Requires the `:admin-security-center` feature flag, a non-trial subscription,
-   and a self-hosted instance."
+   a self-hosted instance, and the `security-center-disabled` setting to be unset."
   :admin-security-center
   :getter (fn []
             (and (has-feature? :admin-security-center)
                  (not (is-hosted?))
+                 (not (security-center-disabled))
                  (not ((requiring-resolve 'metabase.premium-features.token-check/is-trial?)))
                  (or config/is-test? config/is-e2e?
                      (not= (mdb/db-type) :h2)))))
@@ -341,6 +363,14 @@
   "Should we enable AI controls (metabot permissions, scope management)?"
   :ai-controls)
 
+(define-premium-feature ^{:added "0.62.0"} enable-schema-viewer?
+  "Should we allow users to view database schemas as ER diagrams?"
+  :schema-viewer)
+
+(define-premium-feature enable-workspaces?
+  "Should we allow users to manage workspaces?"
+  :workspaces)
+
 (defn- -token-features []
   {:admin_security_center          (security-center-enabled?)
    :advanced_permissions           (enable-advanced-permissions?)
@@ -361,6 +391,7 @@
    :database_routing               (enable-database-routing?)
    :library                        (enable-library?)
    :dependencies                   (enable-dependencies?)
+   :schema-viewer                  (enable-schema-viewer?)
    :development_mode               (development-mode?)
    :disable_password_login         (can-disable-password-login?)
    :email_allow_list               (enable-email-allow-list?)
@@ -394,6 +425,7 @@
    :transforms-basic               (enable-basic-transforms?)
    :transforms-python              (enable-python-transforms?)
    :upload_management              (enable-upload-management?)
+   :workspaces                     (enable-workspaces?)
    :whitelabel                     (enable-whitelabeling?)
    :writable_connection            (enable-writable-connection?)
    :ai_controls                    (enable-ai-controls?)})

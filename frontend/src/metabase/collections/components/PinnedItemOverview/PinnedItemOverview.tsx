@@ -12,10 +12,14 @@ import type {
 import { isPreviewShown, isRootCollection } from "metabase/collections/utils";
 import { ItemDragSource } from "metabase/common/components/dnd/ItemDragSource";
 import CS from "metabase/css/core/index.css";
-import type { IconName } from "metabase/ui";
 import { Box, Group, Icon, Stack } from "metabase/ui";
 import type Database from "metabase-lib/v1/metadata/Database";
-import type { Bookmark, Collection, CollectionItem } from "metabase-types/api";
+import type {
+  Bookmark,
+  Collection,
+  CollectionItem,
+  IconName,
+} from "metabase-types/api";
 
 import { Container, Grid } from "./PinnedItemOverview.styled";
 
@@ -282,7 +286,7 @@ function SectionTitle({ title, description, icon }: SectionTitleProps) {
   return (
     <Stack gap="sm" pb="md">
       <Group gap="sm">
-        {icon && <Icon name={icon} c="brand" />}
+        {icon && <Icon name={icon} c="core-brand" />}
         <h3>{title}</h3>
       </Group>
       {description && <Box c="text-secondary">{description}</Box>}

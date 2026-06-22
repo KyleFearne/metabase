@@ -3,14 +3,21 @@ import type { HTMLAttributes } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { t } from "ttag";
 
-import { useGetCollectionQuery, useLazyGetDashboardQuery } from "metabase/api";
+import {
+  skipToken,
+  useGetCollectionQuery,
+  useGetDashboardQuery,
+  useLazyGetDashboardQuery,
+} from "metabase/api";
 import {
   type EntityType,
   canonicalCollectionId,
+  getCollectionIcon,
   isTrashedCollection,
   isValidCollectionId,
 } from "metabase/collections/utils";
 import { CollectionName } from "metabase/common/components/CollectionName";
+import { DashboardName } from "metabase/common/components/DashboardName";
 import { FormField } from "metabase/common/components/FormField";
 import type {
   EntityPickerOptions,
@@ -25,10 +32,6 @@ import {
 } from "metabase/common/components/Pickers";
 import { SnippetCollectionName } from "metabase/common/components/SnippetCollectionName";
 import { useUniqueId } from "metabase/common/hooks/use-unique-id";
-import { Collections } from "metabase/entities/collections";
-import { getCollectionIcon } from "metabase/entities/collections/utils";
-import { Dashboards } from "metabase/entities/dashboards";
-import { useSelector } from "metabase/redux";
 import { Button, Flex, Icon } from "metabase/ui";
 import type { CollectionId, DashboardId } from "metabase-types/api";
 
@@ -49,8 +52,8 @@ function ItemName({
   if (dashboardId) {
     return (
       <Flex align="center" gap="sm">
-        <Icon name="dashboard" c="brand" />
-        <Dashboards.Name id={dashboardId} />
+        <Icon name="dashboard" c="core-brand" />
+        <DashboardName id={dashboardId} />
       </Flex>
     );
   }
@@ -61,7 +64,7 @@ function ItemName({
 
   return (
     <Flex align="center" gap="sm">
-      <Icon name={collectionIcon.name} c="brand" />
+      <Icon name={collectionIcon.name} c="core-brand" />
       {type === "snippet-collections" ? (
         <SnippetCollectionName id={collectionId} />
       ) : (
@@ -121,21 +124,20 @@ export function FormCollectionAndDashboardPicker({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isPickerOpen, setIsPickerOpen] = useState(false);
 
-  const openCollection = useSelector((state) =>
-    Collections.selectors.getObject(state, { entityId: "root" }),
-  );
+  const { data: openCollection } = useGetCollectionQuery({ id: "root" });
 
-  const selectedItem = useSelector(
-    (state) =>
-      Dashboards.selectors.getObject(state, {
-        entityId: dashboardIdInput.value,
-      }) ||
-      Collections.selectors.getObject(state, {
-        entityId: collectionIdInput.value,
-      }),
+  const { currentData: selectedDashboard } = useGetDashboardQuery(
+    dashboardIdInput.value != null ? { id: dashboardIdInput.value } : skipToken,
   );
+  const { data: selectedCollection } = useGetCollectionQuery(
+    collectionIdInput.value != null
+      ? { id: collectionIdInput.value }
+      : skipToken,
+  );
+  const selectedItem = selectedDashboard || selectedCollection;
 
-  const namespace = selectedItem?.namespace;
+  const namespace =
+    selectedCollection?.namespace ?? selectedDashboard?.collection?.namespace;
 
   const pickerValue: OmniPickerValue = dashboardIdInput.value
     ? { id: dashboardIdInput.value, model: "dashboard", namespace }

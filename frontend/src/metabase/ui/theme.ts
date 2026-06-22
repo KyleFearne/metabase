@@ -78,7 +78,7 @@ export const getThemeOverrides = (
   focusClassName: Styles.focus,
   breakpoints,
   colors: getMantineThemeColors(colorScheme, whitelabelColors),
-  primaryColor: "brand",
+  primaryColor: "core-brand",
   primaryShade: 0,
   // Store colorScheme in other property for access later
   other: {
@@ -147,7 +147,7 @@ export const getThemeOverrides = (
       },
     },
   },
-  fontFamily: "var(--mb-default-font-family), sans-serif",
+  fontFamily: "var(--mb-default-font-family)",
   fontFamilyMonospace: "Monaco, monospace",
   components: {
     ...accordionOverrides,

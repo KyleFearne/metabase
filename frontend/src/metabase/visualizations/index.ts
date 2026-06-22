@@ -5,6 +5,7 @@ import { isStorybookActive } from "metabase/env";
 import type { IconName } from "metabase/ui";
 import type {
   DatasetData,
+  IconName,
   RawSeries,
   Series,
   TransformedSeries,

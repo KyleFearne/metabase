@@ -1,7 +1,11 @@
 import type { CSSProperties, ComponentType, ReactNode } from "react";
 
+import type {
+  ColorRangeSelectorAttributes,
+  ColorRangeSelectorProps,
+} from "metabase/common/components/ColorRangeSelector/ColorRangeSelector";
 import type { Dispatch, QueryBuilderMode } from "metabase/redux/store";
-import type { IconName, IconProps } from "metabase/ui";
+import type { IconProps } from "metabase/ui";
 import type { ColorGetter } from "metabase/ui/colors/types";
 import type { OptionsType } from "metabase/utils/formatting/types";
 import type {
@@ -24,6 +28,7 @@ import type {
   DashboardId,
   DatasetColumn,
   DatasetData,
+  IconName,
   RawSeries,
   RowValue,
   RowValues,
@@ -108,6 +113,7 @@ export type OnChangeCardAndRunOpts = {
   nextCard: Card;
   seriesIndex?: number;
   objectId?: number;
+  drillName?: string;
 };
 
 export type OnChangeCardAndRun = (opts: OnChangeCardAndRunOpts) => void;
@@ -223,6 +229,7 @@ export type VisualizationPassThroughProps = {
   isQueryBuilder?: boolean;
   queryBuilderMode?: QueryBuilderMode;
   zoomedRowIndex?: number;
+  onZoomRow?: (rowIndex: number) => void;
   onDeselectTimelineEvents?: () => void;
   onOpenTimelines?: () => void;
   onSelectTimelineEvents?: (timelineEvents: TimelineEvent[]) => void;
@@ -235,7 +242,7 @@ export type VisualizationPassThroughProps = {
   tableHeaderHeight?: number;
   scrollToColumn?: number;
   renderTableHeader?: (
-    column: number,
+    column: DatasetColumn,
     index: number,
     theme: unknown,
   ) => ReactNode;
@@ -252,7 +259,7 @@ export type VisualizationPassThroughProps = {
 
   showAllLegendItems?: boolean;
 
-  onHeaderColumnReorder?: (columnName: string) => void;
+  onHeaderColumnReorder?: (columnIndex: number) => void;
 
   /**
    * Items that will be shown in a menu when the title is clicked.
@@ -311,7 +318,6 @@ export type VisualizationSettingDefinition<
   TProps extends Record<string, unknown> = Record<string, unknown>,
 > = {
   id?: string;
-  section?: string;
   title?: string;
   placeholder?: string;
   group?: string;
@@ -325,7 +331,6 @@ export type VisualizationSettingDefinition<
       : ComputedVisualizationSettings,
     extra?: SettingsExtra,
   ) => boolean;
-  hidden?: boolean;
   getHidden?: (
     object: T,
     settings: T extends DatasetColumn
@@ -362,7 +367,6 @@ export type VisualizationSettingDefinition<
     extra?: SettingsExtra,
   ) => CSSProperties | undefined;
   autoOpenWhenUnset?: boolean;
-  value?: TValue;
   set?: boolean;
   persistDefault?: boolean;
   inline?: boolean;
@@ -392,11 +396,14 @@ export type CompleteVisualizationSettingDefinition<
   TProps extends Record<string, unknown> = Record<string, unknown>,
 > = Omit<
   VisualizationSettingDefinition<T, TValue, TProps>,
-  "getProps" | "getWrapperStyle"
+  "getProps" | "getWrapperStyle" | "getHidden" | "getSection"
 > & {
   id: string;
   style?: CSSProperties;
   props: Partial<TProps>;
+  hidden: boolean;
+  section?: string;
+  value?: TValue;
 };
 
 export type DatasetColumnSettingDefinition<
@@ -514,6 +521,17 @@ export type VisualizationSettingsDefinitions = {
   "line.style"?: SingleSeriesSettingDefinition<Value, Props>;
   "link.text"?: SeriesSettingDefinition<Value, Props>;
   "link.url"?: SeriesSettingDefinition<Value, Props>;
+  "map.pin_type"?: SeriesSettingDefinition<Value, Props>;
+  "map.type"?: SeriesSettingDefinition<Value, Props>;
+  "map.region"?: SeriesSettingDefinition<Value, Props>;
+  "map.colors"?: SeriesSettingDefinition<
+    Value,
+    Omit<ColorRangeSelectorProps, keyof ColorRangeSelectorAttributes>
+  >;
+  "map.heat.radius"?: SeriesSettingDefinition<Value, Props>;
+  "map.heat.blur"?: SeriesSettingDefinition<Value, Props>;
+  "map.heat.min-opacity"?: SeriesSettingDefinition<Value, Props>;
+  "map.heat.max-zoom"?: SeriesSettingDefinition<Value, Props>;
   markdown_template?: DatasetColumnSettingDefinition<Value, Props>;
   number_separators?: DatasetColumnSettingDefinition<Value, Props>;
   number_style?: DatasetColumnSettingDefinition<Value, Props>;

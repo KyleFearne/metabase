@@ -1,7 +1,6 @@
 import type { ComponentType } from "react";
 
 import type { Column, RowValue, Series } from "./data";
-import type { TextHeightMeasurer, TextWidthMeasurer } from "./measure-text";
 import type {
   CreateDefineSetting,
   CustomVisualizationSettingDefinition,
@@ -21,13 +20,6 @@ export type CreateCustomVisualizationProps<
   TSettings extends Record<string, unknown>,
 > = {
   defineSetting: ReturnType<CreateDefineSetting<TSettings>>;
-
-  /**
-   * Returns a URL for a static asset declared in the plugin manifest.
-   * Use this to reference images and other static files from your plugin.
-   * @example getAssetUrl("icon.svg")
-   */
-  getAssetUrl: (assetPath: string) => string;
 
   /**
    * Locale to render visualization with (e.g. "de", "ja", "en").
@@ -83,28 +75,18 @@ export type CustomVisualization<TSettings extends Record<string, unknown>> = {
   ) => void | never;
 
   /**
-   * Component that renders the visualization.
+   * Mount a plugin-supplied React component into the host-provided
+   * container. The host uses this to render both the visualization itself
+   * and per-setting widgets; in all cases the render uses the plugin's
+   * React instance (because `mount` is constructed inside the sandbox).
    */
-  VisualizationComponent: ComponentType<CustomVisualizationProps<TSettings>>;
+  mount: CustomVisualizationMount;
 
   /**
-   * Component that renders the visualization.
+   * Static visualization renderer (server-side PNG/PDF path, not sandboxed).
+   * Out of scope for the near-membrane hardening; stays as a plain component.
    */
-  StaticVisualizationComponent?: ComponentType<
-    CustomStaticVisualizationProps<TSettings>
-  >;
-};
-
-export type BaseWidgetProps<
-  TValue,
-  TSettings extends Record<string, unknown>,
-> = {
-  id: string;
-  value: TValue | undefined;
-  onChange: (value?: TValue | null) => void;
-  onChangeSettings: (
-    settings: Partial<CustomVisualizationSettings<TSettings>>,
-  ) => void;
+  VisualizationComponent: ComponentType<CustomVisualizationProps<TSettings>>;
 };
 
 export type VisualizationGridSize = {
@@ -139,22 +121,25 @@ export type CustomVisualizationProps<
   onHover: (hoverObject?: HoverObject | null) => void;
 };
 
-export type ColorGetter = (colorName: string) => string;
-
-export interface RenderingContext {
-  getColor: ColorGetter;
-  measureText: TextWidthMeasurer;
-  measureTextHeight: TextHeightMeasurer;
-  fontFamily: string;
-}
-
-export type CustomStaticVisualizationProps<
-  TSettings extends Record<string, unknown>,
-> = {
-  series: Series;
-  settings: CustomVisualizationSettings<TSettings>;
-  renderingContext: RenderingContext;
+/**
+ * Handle returned by a plugin's mount call. The host calls update() to
+ * push new props (data, settings, dimensions) and unmount() on cleanup.
+ */
+export type CustomVisualizationMountHandle<TProps> = {
+  update(props: TProps): void;
+  unmount(): void;
 };
+
+/**
+ * Generic mount adapter. The plugin owns its React tree and renders the
+ * supplied `Component` into the host-provided container using the
+ * plugin's React. Reused for the visualization and per-setting widgets.
+ */
+export type CustomVisualizationMount = <P extends object>(
+  Component: ComponentType<P>,
+  container: Element,
+  initialProps: P,
+) => CustomVisualizationMountHandle<P>;
 
 export type ClickObject<TSettings extends Record<string, unknown>> = {
   /** The raw value of the clicked cell. */
@@ -279,4 +264,16 @@ declare const ClickBehaviorSymbol: unique symbol;
  */
 export type ClickBehavior = {
   readonly [ClickBehaviorSymbol]: "ClickBehavior";
+};
+
+export type BaseWidgetProps<
+  TValue,
+  TSettings extends Record<string, unknown>,
+> = {
+  id: string;
+  value: TValue | undefined;
+  onChange: (value?: TValue | null) => void;
+  onChangeSettings: (
+    settings: Partial<CustomVisualizationSettings<TSettings>>,
+  ) => void;
 };

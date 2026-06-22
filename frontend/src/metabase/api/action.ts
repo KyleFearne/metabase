@@ -1,10 +1,15 @@
 import _ from "underscore";
 
-import { ActionSchema } from "metabase/schema";
 import type {
+  ActionExecutionResult,
   CreateActionRequest,
+  ExecuteActionRequest,
+  ExecuteDashcardActionRequest,
   GetActionRequest,
   ListActionsRequest,
+  ParametersForActionExecution,
+  PrefetchActionValuesRequest,
+  PrefetchDashcardValuesRequest,
   UpdateActionRequest,
   WritebackAction,
   WritebackActionId,
@@ -19,7 +24,6 @@ import {
   provideActionListTags,
   provideActionTags,
 } from "./tags";
-import { hydrateLegacyEntities } from "./utils/hydrate-legacy-entities";
 
 export const actionApi = Api.injectEndpoints({
   endpoints: (builder) => ({
@@ -30,7 +34,6 @@ export const actionApi = Api.injectEndpoints({
         params,
       }),
       providesTags: (collections = []) => provideActionListTags(collections),
-      onQueryStarted: hydrateLegacyEntities([ActionSchema]),
     }),
     getAction: builder.query<WritebackAction, GetActionRequest>({
       query: ({ id }) => ({
@@ -38,7 +41,6 @@ export const actionApi = Api.injectEndpoints({
         url: `/api/action/${id}`,
       }),
       providesTags: (action) => (action ? provideActionTags(action) : []),
-      onQueryStarted: hydrateLegacyEntities(ActionSchema),
     }),
     createAction: builder.mutation<WritebackAction, CreateActionRequest>({
       query: (body) => ({
@@ -53,7 +55,33 @@ export const actionApi = Api.injectEndpoints({
       query: (body) => ({
         method: "PUT",
         url: `/api/action/${body.id}`,
-        body: _.omit(body, "type"), // Changing action type is not supported
+        // The action editor passes the full WritebackAction it fetched
+        // (including server-managed fields like `creator`, `created_at`,
+        // `database_enabled_actions`, ...). The backend routes anything
+        // outside the Action columns to the type-specific update table
+        // (query_action / implicit_action / http_action), where those
+        // columns don't exist and the request 500s. Whitelist only the
+        // fields that the API endpoint actually accepts.
+        body: _.pick(body, [
+          "id",
+          "archived",
+          "body",
+          "database_id",
+          "dataset_query",
+          "description",
+          "error_handle",
+          "headers",
+          "kind",
+          "model_id",
+          "name",
+          "parameter_mappings",
+          "parameters",
+          "public_uuid",
+          "response_handle",
+          "template",
+          "url",
+          "visualization_settings",
+        ]),
       }),
       invalidatesTags: (action, error) =>
         action
@@ -109,6 +137,52 @@ export const actionApi = Api.injectEndpoints({
           idTag("action", id),
         ]),
     }),
+    executeAction: builder.mutation<
+      ActionExecutionResult,
+      ExecuteActionRequest
+    >({
+      query: ({ id, parameters }) => ({
+        method: "POST",
+        url: `/api/action/${id}/execute`,
+        body: { parameters },
+      }),
+    }),
+    prefetchActionValues: builder.query<
+      ParametersForActionExecution,
+      PrefetchActionValuesRequest
+    >({
+      query: ({ id, parameters }) => ({
+        method: "GET",
+        url: `/api/action/${id}/execute`,
+        params: { parameters: JSON.stringify(parameters) },
+      }),
+      // Prefetch is an imperative fetch-and-discard with row-specific params
+      // that rarely repeat, so there's nothing to gain from caching entries.
+      keepUnusedDataFor: 0,
+    }),
+    executeDashcardAction: builder.mutation<
+      ActionExecutionResult,
+      ExecuteDashcardActionRequest
+    >({
+      query: ({ dashboardId, dashcardId, modelId, parameters }) => ({
+        method: "POST",
+        url: `/api/dashboard/${dashboardId}/dashcard/${dashcardId}/execute`,
+        body: { modelId, parameters },
+      }),
+    }),
+    prefetchDashcardValues: builder.query<
+      ParametersForActionExecution,
+      PrefetchDashcardValuesRequest
+    >({
+      query: ({ dashboardId, dashcardId, parameters }) => ({
+        method: "GET",
+        url: `/api/dashboard/${dashboardId}/dashcard/${dashcardId}/execute`,
+        params: { parameters: JSON.stringify(parameters) },
+      }),
+      // Prefetch is an imperative fetch-and-discard with per-dashcard params
+      // that rarely repeat, so there's nothing to gain from caching entries.
+      keepUnusedDataFor: 0,
+    }),
   }),
 });
 
@@ -116,12 +190,19 @@ export const {
   useGetActionQuery,
   useListActionsQuery,
   useListPublicActionsQuery,
+  useCreateActionMutation,
   useUpdateActionMutation,
+  useDeleteActionMutation,
   useCreateActionPublicLinkMutation,
   useDeleteActionPublicLinkMutation,
+  useExecuteActionMutation,
   endpoints: {
     listPublicActions,
     deleteActionPublicLink,
     createActionPublicLink,
+    executeAction,
+    prefetchActionValues,
+    executeDashcardAction,
+    prefetchDashcardValues,
   },
 } = actionApi;

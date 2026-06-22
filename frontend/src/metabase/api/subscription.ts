@@ -1,4 +1,4 @@
-import { PulseSchema } from "metabase/schema";
+import type { DashboardSubscriptionData } from "metabase/redux/store";
 import type {
   ChannelApiResponse,
   CreateSubscriptionRequest,
@@ -16,7 +16,6 @@ import {
   provideSubscriptionListTags,
   provideSubscriptionTags,
 } from "./tags";
-import { hydrateLegacyEntities } from "./utils/hydrate-legacy-entities";
 
 export const subscriptionApi = Api.injectEndpoints({
   endpoints: (builder) => ({
@@ -31,7 +30,6 @@ export const subscriptionApi = Api.injectEndpoints({
       }),
       providesTags: (subscriptions = []) =>
         provideSubscriptionListTags(subscriptions),
-      onQueryStarted: hydrateLegacyEntities([PulseSchema]),
     }),
     getSubscription: builder.query<DashboardSubscription, number>({
       query: (id) => ({
@@ -40,7 +38,6 @@ export const subscriptionApi = Api.injectEndpoints({
       }),
       providesTags: (subscription) =>
         subscription ? provideSubscriptionTags(subscription) : [],
-      onQueryStarted: hydrateLegacyEntities(PulseSchema),
     }),
     createSubscription: builder.mutation<
       DashboardSubscription,
@@ -80,6 +77,16 @@ export const subscriptionApi = Api.injectEndpoints({
           idTag("subscription", id),
         ]),
     }),
+    testSubscription: builder.mutation<
+      { ok: boolean },
+      DashboardSubscriptionData
+    >({
+      query: (body) => ({
+        method: "POST",
+        url: "/api/pulse/test",
+        body,
+      }),
+    }),
     getChannelInfo: builder.query<ChannelApiResponse, void>({
       query: () => ({
         method: "GET",
@@ -96,5 +103,6 @@ export const {
   useCreateSubscriptionMutation,
   useUpdateSubscriptionMutation,
   useUnsubscribeMutation,
+  useTestSubscriptionMutation,
   useGetChannelInfoQuery,
 } = subscriptionApi;

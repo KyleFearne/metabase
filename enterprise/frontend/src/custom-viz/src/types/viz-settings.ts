@@ -5,6 +5,30 @@ import type { BaseWidgetProps, ClickBehavior } from "./viz";
 
 export type WidgetName = keyof Widgets;
 
+/**
+ * Handle returned by a custom widget's mount call.
+ *
+ * The host drives the widget's lifecycle through this handle: `update` pushes
+ * fresh props after re-renders, `unmount` tears down the widget's React tree.
+ */
+export type WidgetMountHandle<TProps> = {
+  update(props: TProps): void;
+  unmount(): void;
+};
+
+/**
+ * Mount adapter for a custom-component setting widget.
+ *
+ * When a setting's `widget` is a React component, the host wraps it into a
+ * `WidgetMount` so it renders within the plugin's sandbox. The host gives the
+ * plugin a container element; the plugin renders into it using its own React
+ * instance and returns a handle the host can `update` / `unmount`.
+ */
+export type WidgetMount<TProps = Record<string, unknown>> = (
+  container: Element,
+  initialProps: TProps,
+) => WidgetMountHandle<TProps>;
+
 export type Widgets = {
   input: InputProps;
   number: NumberProps;
@@ -125,10 +149,13 @@ export type CreateDefineSetting<TSettings extends Record<string, unknown>> =
     id: Key;
 
     /**
-     * Top-level section that this setting appears under in the settings sidebar
-     * (e.g. `"Data"`, `"Display"`, `"Axes"`).
+     * Returns the top-level section this setting appears under in the settings
+     * sidebar (e.g. `"Data"`, `"Display"`, `"Axes"`). Implemented as a getter so
+     * the label can be localized at call time.
+     *
+     * @returns Section to put this setting into.
      */
-    section?: string;
+    getSection?: () => string;
 
     /** Human-readable label rendered above the widget in the sidebar. */
     title?: string;
@@ -202,11 +229,16 @@ export type CreateDefineSetting<TSettings extends Record<string, unknown>> =
     eraseDependencies?: string[];
 
     /**
-     * Widget to render for this setting: either a built-in widget name (`WidgetName`)
-     * or a custom React component (`React.ComponentType<P>`).
+     * Widget to render for this setting: either a built-in widget name
+     * (`WidgetName`) or a custom React component (`React.ComponentType<P>`).
      *
-     * When using a custom component, `getProps` should return only the non-base props;
-     * base widget props are provided by the settings renderer.
+     * When using a custom component, `getProps` should return only the
+     * non-base props; base widget props are provided by the settings
+     * renderer.
+     *
+     * Custom-component widgets are rewritten internally to a `WidgetMount`
+     * before the definition leaves the plugin sandbox, so the host never
+     * receives a plain React component reference.
      */
     widget: W;
 

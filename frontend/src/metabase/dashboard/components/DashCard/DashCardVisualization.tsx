@@ -14,23 +14,20 @@ import {
   getDashCardInlineValuePopulatedParameters,
   getDashcardData,
 } from "metabase/dashboard/selectors";
-import { getVirtualCardType } from "metabase/dashboard/utils";
+import {
+  getVirtualCardType,
+  isDashcardAccessRestricted,
+} from "metabase/dashboard/utils";
 import { EmbeddingEntityContextProvider } from "metabase/embedding/context";
 import { PLUGIN_CONTENT_TRANSLATION } from "metabase/plugins";
 import { useDispatch, useSelector } from "metabase/redux";
 import { getSetting } from "metabase/selectors/settings";
-import {
-  Flex,
-  Group,
-  type IconName,
-  type IconProps,
-  Menu,
-  Title,
-} from "metabase/ui";
+import { Flex, Group, type IconProps, Menu, Title } from "metabase/ui";
 import { isVirtualDashCard } from "metabase/utils/dashboard";
 import { measureTextWidth } from "metabase/utils/measure-text";
 import { getVisualizationRaw, isCartesianChart } from "metabase/visualizations";
 import Visualization from "metabase/visualizations/components/Visualization";
+import { DashCardLoadingView } from "metabase/visualizations/components/Visualization/LoadingView/DashCardLoadingView";
 import type { LoadingViewProps } from "metabase/visualizations/components/Visualization/LoadingView/LoadingView";
 import {
   LEGEND_LABEL_FONT_SIZE,
@@ -59,6 +56,7 @@ import type {
   DashboardCard,
   Dataset,
   DatasetData,
+  IconName,
   RawSeries,
   Series,
   VirtualCardDisplay,
@@ -69,7 +67,6 @@ import type {
 import { CollapsibleDashboardParameterList } from "../CollapsibleDashboardParameterList";
 
 import { ClickBehaviorSidebarOverlay } from "./ClickBehaviorSidebarOverlay/ClickBehaviorSidebarOverlay";
-import { DashCardLoadingView } from "./DashCardLoadingView";
 import { DashCardMenu } from "./DashCardMenu/DashCardMenu";
 import { DashCardParameterMapper } from "./DashCardParameterMapper/DashCardParameterMapper";
 import S from "./DashCardVisualization.module.css";
@@ -204,6 +201,11 @@ export function DashCardVisualization({
     ) {
       return;
     }
+    // Skip when access is denied; the permission message would otherwise be
+    // masked by "Some columns are missing".
+    if (isDashcardAccessRestricted(rawSeries)) {
+      return;
+    }
 
     const missingCols = getMissingColumnsFromVisualizationSettings({
       visualizerEntity: dashcard.visualization_settings.visualization,
@@ -247,9 +249,10 @@ export function DashCardVisualization({
       ]),
     );
 
-    const didEveryDatasetLoad = dataSources.every(
-      (dataSource) => dataSourceDatasets[dataSource.id] != null,
-    );
+    const everyDatasetLoaded = dataSources.every((dataSource) => {
+      const dataset = dataSourceDatasets[dataSource.id];
+      return dataset != null && dataset.error == null;
+    });
 
     const columns = getVisualizationColumns(
       visualizerEntity,
@@ -267,7 +270,8 @@ export function DashCardVisualization({
       _.omit(dashcard.visualization_settings, "visualization"),
     );
 
-    if (!didEveryDatasetLoad) {
+    if (!everyDatasetLoaded) {
+      // No `data` so the parent <Visualization> picks its error or loading view.
       return [{ card }] as RawSeries;
     }
 
@@ -442,7 +446,9 @@ export function DashCardVisualization({
     });
 
   const actionButtons = useMemo(() => {
-    const result = series[0] as unknown as Dataset;
+    const cardId = dashcard.card_id ?? dashcard.card?.id;
+    const cardResult = cardId ? datasets?.[cardId] : undefined;
+    const result = cardResult ?? (series[0] as unknown as Dataset);
 
     const showMenu =
       question &&
@@ -453,9 +459,6 @@ export function DashCardVisualization({
         result,
       });
 
-    const cardResult = dashcard.card_id
-      ? datasets?.[dashcard.card_id]
-      : undefined;
     const errorStatus =
       cardResult?.error && typeof cardResult.error === "object"
         ? cardResult.error.status
@@ -526,14 +529,14 @@ export function DashCardVisualization({
 
   return (
     <div
-      className={cx(CS.flexFull, CS.fullHeight, {
+      className={cx(S.VisualizationContainer, CS.flexFull, CS.fullHeight, {
         [CS.pointerEventsNone]: isEditingDashboardLayout,
       })}
       ref={containerRef}
     >
       <EmbeddingEntityContextProvider uuid={uuid ?? null} token={token ?? null}>
         <Visualization
-          className={cx(CS.flexFull, {
+          className={cx(S.Visualization, CS.flexFull, {
             [CS.overflowAuto]: visualizationOverlay,
             [CS.overflowHidden]: !visualizationOverlay,
           })}

@@ -4,6 +4,7 @@
    [clojure.java.io :as io]
    [clojure.string :as str]
    [clojure.tools.cli :as cli]
+   [dev.debug]
    [environ.core :as env]
    [hashp.preload]
    [metabase.classloader.core :as classloader]
@@ -11,6 +12,28 @@
    [metabase.util :as u]
    [nrepl.server :as nrepl-server]
    [refactor-nrepl.middleware]))
+
+;; Two debug-print readers, both available at dev time:
+;;
+;;   `#p`  - hashp's stock reader. Writes to *err* with color, suitable for
+;;           live REPL inspection.
+;;   `#d`  - our `dev.debug/d` reader. Writes to `DEV_DEBUG_LOG` (default
+;;           `/tmp/<cwd>_debug.log`). Real source line numbers (captured from
+;;           `(meta form)` at read time, not the runtime JVM stack like
+;;           hashp does). Survives across threads and JVM processes
+;;           (test-agent + REPL share the file).
+;;
+;; Use `#p` for live REPL inspection, `#d` for grep/tail-able output (test
+;; runs, agent debugging, cross-thread tracing).
+;;
+;; REPL helpers in `dev.debug`:
+;;   `(dev.debug/clear!)`     — truncate the file
+;;   `(dev.debug/where)`      — print the current log path
+;;   `(dev.debug/stack!)`     — spit a filtered call stack
+;;   `(dev.debug/set-file! p)`— override the log path
+;;
+;; Watch the log live:
+;;   tail -f $(echo /tmp/*_debug.log) | bat --paging=never -l edn
 
 (set! *warn-on-reflection* true)
 
@@ -95,7 +118,7 @@
 ;; We sometimes need to run cmd stuffs like `clojure -M:migrate rollback n 3` and these
 ;; libraries might not be available in the classpath
 (u/ignore-exceptions
- ;; make sure stuff like `=?` and what not are loaded
+  ;; make sure stuff like `=?` and what not are loaded
   (classloader/require 'mb.hawk.assert-exprs))
 
 (u/ignore-exceptions
@@ -107,9 +130,9 @@
 
 (u/ignore-exceptions
   (classloader/require 'pjstadig.humane-test-output)
- ;; Initialize Humane Test Output if it's not already initialized. Don't enable humane-test-output when running tests
- ;; from the CLI, it breaks diffs. This uses [[env/env]] rather than [[metabase.config.core]] so we don't load that
- ;; namespace before we load [[metabase.core.bootstrap]]
+  ;; Initialize Humane Test Output if it's not already initialized. Don't enable humane-test-output when running tests
+  ;; from the CLI, it breaks diffs. This uses [[env/env]] rather than [[metabase.config.core]] so we don't load that
+  ;; namespace before we load [[metabase.core.bootstrap]]
   (when-not (= (env/env :mb-run-mode) "test")
     ((resolve 'pjstadig.humane-test-output/activate!))))
 

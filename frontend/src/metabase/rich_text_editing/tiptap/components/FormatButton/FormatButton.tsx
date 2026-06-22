@@ -1,7 +1,7 @@
 import type React from "react";
 
-import type { IconName } from "metabase/ui";
 import { Icon, Tooltip, UnstyledButton } from "metabase/ui";
+import type { IconName } from "metabase-types/api";
 
 import S from "./FormatButton.module.css";
 
@@ -26,7 +26,7 @@ export const FormatButton: React.FC<FormatButtonProps> = ({
         w="32px"
         h="32px"
         display="flex"
-        c={isActive ? "brand" : "text-primary"}
+        c={isActive ? "core-brand" : "text-primary"}
         bg={isActive ? "background-secondary" : "transparent"}
         fz={14}
         fw="bold"
